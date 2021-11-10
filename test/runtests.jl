@@ -25,4 +25,11 @@ using Test
         @test getchain(fn) isa AbstractVector{MIToS.PDB.PDBResidue}
         rm(fn)
     end
+    @testset "MSA" begin
+        # The test file is copied from MIToS/test/data, with gratitude
+        pf09645_sto = "PF09645_full.stockholm"
+        msa = read(pf09645_sto, MIToS.Pfam.Stockholm)
+        @test MIToS.MSA.nsequences(filter_species!(deepcopy(msa), "ATV")) == 1
+        @test MIToS.MSA.nsequences(filter_long!(deepcopy(msa), 70)) == 3
+    end
 end
