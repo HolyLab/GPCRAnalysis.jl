@@ -1,4 +1,5 @@
 using GPCRAnalysis
+using MIToS
 using Test
 
 @testset "GPCRAnalysis.jl" begin
@@ -15,5 +16,13 @@ using Test
         @test_throws ErrorException uniprotX("Q8VGW67_MOUSE/31-308")
         @test_throws ErrorException uniprotX("q8vgw6_MOUSE/31-308")
         @test_throws ErrorException uniprotX("QV8GW6_MOUSE/31-308")
+    end
+    @testset "AlphaFold" begin
+        @test try_download_alphafold("garbage") === nothing
+        fn = tempname()
+        @test try_download_alphafold("K7N608", fn) == fn
+        @test isfile(fn)
+        @test getchain(fn) isa AbstractVector{MIToS.PDB.PDBResidue}
+        rm(fn)
     end
 end
