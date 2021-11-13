@@ -18,11 +18,13 @@ export try_download_alphafold, download_alphafolds, getchain
 export filter_species!, filter_long!
 export project_sequences, columnwise_entropy, align, chargelocations, positive_locations, negative_locations
 export StructAlign, residueindex
+export BWScheme, lookupbw
 
 include("naming_conventions.jl")
 include("utils.jl")
 include("msa.jl")
 include("analyze.jl")
 include("tmalign.jl")
+include("ballesteros_weinstein.jl")
 
 end
