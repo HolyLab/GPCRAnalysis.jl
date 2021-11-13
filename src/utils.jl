@@ -51,3 +51,20 @@ function countitems(list)
     end
     return count
 end
+
+function findall_subseq(subseq, seq)
+    starts = Int[]
+    n = length(subseq)
+    for i in eachindex(seq)
+        if seq[i] == subseq[begin] && i + n - 1 <= lastindex(seq)
+            issame = true
+            for (ss, s) in zip(view(seq, i:i+n-1), subseq)
+                issame &= ss == s
+            end
+            if issame
+                push!(starts, i)
+            end
+        end
+    end
+    return starts
+end
