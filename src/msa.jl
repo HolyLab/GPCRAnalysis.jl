@@ -70,3 +70,55 @@ function Base.setindex!(fullseqvec::Vector, colvalues::AbstractVector, sm::Seque
     idxnz = sm.seqmap .> 0
     fullseqvec[sm.seqmap[idxnz]] = colvalues[idxnz]
 end
+
+"""
+    chimerax_script(filename, uprot_list, msa::AnnotatedMultipleSequenceAlignment, colidxs;
+                    dir=pwd(), chain_transparency=80, styles=Dict{Int,String}(), extras=String[])
+
+Create a [chimerax]() visualization script with name `filename`. `uprot_list` is a list of UniProtX names that you
+want to visualize.  The AlphaFold PDB files for these proteins should be `dir`. `msa` is a Multiple Sequence alignment
+and `colidxs` specifies the column indices in `msa` that you'd like to visualize.
+
+`chain_transparency` sets the transparency on the ribbon diagrams (0 = not transparent).
+`styles` can be used to affect the display, e.g., `Dict(k => "@SD sphere")` would cause methionines at column index `k`
+to be displayed with the sulfur in sphere mode. `extras` can be used to hand-specify a number of additional commands;
+this can be useful if, for example, the `msa` has occasional misalignments.
+
+# Examples
+
+Suppose you have the `msa` for rhodopsin (mouse: P15409), then:
+
+```julia
+chimerax_script("myscript.cxc", ["P15409"], msa, [i1, i2, i3])
+```
+
+where `i1` through `i3` are column-indices in the `msa` that you'd like to view.
+"""
+function chimerax_script(filename, uprot_list, msa::AnnotatedMultipleSequenceAlignment, colidxs;
+                         dir=pwd(), chain_transparency=80, styles=Dict{Int,String}(), extras=String[])
+    open(filename, "w") do io
+        for (i, p) in enumerate(uprot_list)
+            afname = alphafoldfile(p)
+            println(io, "open ", joinpath(dir, afname))
+            seqidx = findfirst(str -> startswith(str, p), sequencenames(msa))
+            sm = getsequencemapping(msa, seqidx)
+            for c in colidxs
+                ridx = sm[c]
+                if iszero(ridx)
+                    @warn "column $c not set in $p"
+                    continue
+                end
+                println(io, "show #", i, " :", ridx)
+                style = get(styles, c, nothing)
+                if style !== nothing
+                    println(io, "style #", i, " :", ridx, " ", style)
+                end
+            end
+        end
+        for ex in extras
+            println(io, ex)
+        end
+        println(io, "transparency #1-", length(uprot_list), ' ', chain_transparency, " target c")
+        println(io, "matchmaker #2-", length(uprot_list), " to #1")
+    end
+end

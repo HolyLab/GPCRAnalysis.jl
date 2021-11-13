@@ -15,7 +15,7 @@ export @res_str
 export SequenceMapping
 export species, uniprotX
 export try_download_alphafold, download_alphafolds, getchain, findall_subseq
-export filter_species!, filter_long!
+export filter_species!, filter_long!, chimerax_script
 export project_sequences, columnwise_entropy, align, chargelocations, positive_locations, negative_locations
 export StructAlign, residueindex
 export BWScheme, lookupbw
