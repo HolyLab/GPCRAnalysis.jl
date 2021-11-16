@@ -119,6 +119,8 @@ function chimerax_script(filename, uprot_list, msa::AnnotatedMultipleSequenceAli
             println(io, ex)
         end
         println(io, "transparency #1-", length(uprot_list), ' ', chain_transparency, " target c")
-        println(io, "matchmaker #2-", length(uprot_list), " to #1")
+        if !any(str -> startswith(str, "align"), extras)
+            println(io, "matchmaker #2-", length(uprot_list), " to #1")
+        end
     end
 end
