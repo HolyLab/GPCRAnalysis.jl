@@ -42,6 +42,25 @@ function columnwise_entropy(msa::AbstractMultipleSequenceAlignment, aacode=reduc
 end
 
 """
+    residue_centroid(r::PDBResidue)
+
+Compute the mean position of all atoms in `r` excluding hydrogen.
+
+Residue centers may yield a more reliable measure of "comparable residues" than the α-carbons (see `CAmatrix`) because
+they incorporate the orientation of the side chain relative to the overall fold.
+
+See also [`residue_centroid_matrix`](@ref).
+"""
+residue_centroid(r::PDBResidue) = mean(atom -> atom.coordinates, Iterators.filter(atom -> atom.element != "H", r.atoms))
+
+"""
+    residue_centroid_matrix(seq)
+
+Return a matrix of all residue centroids as columns. See also [`residue_centroid`](@ref).
+"""
+residue_centroid_matrix(seq) = reduce(hcat, map(residue_centroid, seq))
+
+"""
     align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
     align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
 
@@ -49,21 +68,29 @@ Return a rotated and shifted version of `moving` so that the α-carbons of resid
 mean square error deviation from positions `fixedpos` or those of residues `fixed`.
 """
 function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; seqname=nothing)
-    length(sm) == size(fixedpos, 1) || throw(DimensionMismatch("reference has $(size(fixedpos, 1)) positions, but `sm` has $(length(sm))"))
+    length(sm) == size(fixedpos, 2) || throw(DimensionMismatch("reference has $(size(fixedpos, 2)) positions, but `sm` has $(length(sm))"))
     movres = moving[sm]
     keep = map(!isnothing, movres)
     if !all(keep)
         @warn "missing $(length(keep)-sum(keep)) anchors for sequence $seqname"
     end
-    movpos = CAmatrix(convert(AbstractVector{PDBResidue}, movres[keep]))
-    fixedpos = fixedpos[keep,:]
-    refmean = mean(fixedpos; dims=1)
-    movmean = mean(movpos; dims=1)
-    R = kabsch(fixedpos .- refmean, movpos .- movmean)
-    return change_coordinates(moving, (coordinatesmatrix(moving) .- movmean) * R .+ refmean)
+    movpos = residue_centroid_matrix(movres[keep])
+    fixedpos = fixedpos[:,keep]
+    refmean = mean(fixedpos; dims=2)
+    movmean = mean(movpos; dims=2)
+    R = kabsch((fixedpos .- refmean)', (movpos .- movmean)')
+    return change_coordinates(moving, (coordinatesmatrix(moving) .- movmean') * R .+ refmean')
 end
 align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; kwargs...) =
-    align(CAmatrix(fixed), moving, sm; kwargs...)
+    align(residue_centroid_matrix(fixed), moving, sm; kwargs...)
+
+function mapclosest(mapto::AbstractVector{PDBResidue}, mapfrom::AbstractVector{PDBResidue})
+    refcenters = residue_centroid_matrix(mapto)
+    seqcenters = residue_centroid_matrix(mapfrom)
+    D = pairwise(Euclidean(), refcenters, seqcenters; dims=2)
+    d, m = findmin(D; dims=1)
+    return [mi[1] => di for (mi, di) in zip(vec(m), vec(d))]
+end
 
 """
     chargelocations(pdb::AbstractVector{PDBResidue}; include_his::Bool=false)
