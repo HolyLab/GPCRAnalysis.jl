@@ -6,6 +6,7 @@ version = "0.1.0"
 [deps]
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+Hungarian = "e91730f6-4275-51fb-a7a0-7064cfbd3b39"
 MIToS = "51bafb47-8a16-5ded-8b04-24ef4eede0b5"
 MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
 Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"

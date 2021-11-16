@@ -88,8 +88,10 @@ function mapclosest(mapto::AbstractVector{PDBResidue}, mapfrom::AbstractVector{P
     refcenters = residue_centroid_matrix(mapto)
     seqcenters = residue_centroid_matrix(mapfrom)
     D = pairwise(Euclidean(), refcenters, seqcenters; dims=2)
-    d, m = findmin(D; dims=1)
-    return [mi[1] => di for (mi, di) in zip(vec(m), vec(d))]
+    assignment, _ = hungarian(D)
+    return collect(zip(assignment, [j == 0 ? convert(eltype(D), NaN) : D[i, j] for (i, j) in enumerate(assignment)]))
+    # d, m = findmin(D; dims=1)
+    # return [mi[1] => di for (mi, di) in zip(vec(m), vec(d))]
 end
 
 """

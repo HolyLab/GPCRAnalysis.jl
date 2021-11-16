@@ -10,6 +10,7 @@ using MIToS.PDB
 
 using MultivariateStats
 using Distances
+using Hungarian
 
 export @res_str
 
