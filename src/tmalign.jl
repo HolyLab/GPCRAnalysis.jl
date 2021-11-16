@@ -35,8 +35,8 @@ function MapAlign(s::AbstractVector{PDBResidue}, a::AbstractVector{Residue}, qua
     for (r, q) in zip(a, quality)
         r == Residue('-') && continue
         j += 1
-        q == ':' || continue
         r == three2residue(s[j].id.name) || error("at position $j, residue was $(s[j].id.name) but alignment was $r")
+        q == ':' || continue
         push!(a2s, j)
         s2a[j] = length(a2s)
     end
