@@ -49,6 +49,7 @@ This is the residue just before the most-conserved residue of helix 4.
 """
 function lookupbw(idx::Integer, scheme::BWScheme)
     i = findfirst(rng -> idx ∈ rng, scheme.tmspans)
+    i === nothing && return nothing
     @assert findnext(rng -> idx ∈ rng, scheme.tmspans, i+1) === nothing
     return i, idx - scheme.conserved[i] + 50
 end
