@@ -17,8 +17,8 @@ export SequenceMapping
 export species, uniprotX
 export try_download_alphafold, download_alphafolds, getchain, findall_subseq
 export filter_species!, filter_long!, chimerax_script
-export StructAlign, residueindex
 export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, mapclosest, chargelocations, positive_locations, negative_locations
+export StructAlign, residueindex, ismapped
 export BWScheme, lookupbw
 
 include("naming_conventions.jl")

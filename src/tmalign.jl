@@ -78,6 +78,7 @@ function residueindex(sa::StructAlign, ::Nothing, idx2::Integer, dir)
     end
      return sa.m1.a2s[i2]
 end
+ismapped(sa::StructAlign, ::Nothing, idx2::Integer) = sa.m2.s2a[idx2] != alignsentinel
 
 """
     residueindex(sa::StructAlign, idx1, nothing)
@@ -97,4 +98,4 @@ function residueindex(sa::StructAlign, idx1::Integer, ::Nothing, dir)
     end
      return sa.m2.a2s[i1]
 end
-
+ismapped(sa::StructAlign, idx1::Integer, ::Nothing) = sa.m1.s2a[idx1] != alignsentinel
