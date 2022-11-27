@@ -54,6 +54,7 @@ using Test
         @test !all(e2 .== e)
 
         @test size(project_sequences(msa)) == (3, 4)
+        @test size(project_sequences(msa; fracvar=0.5)) == (1, 4)
     end
 
     if !isdefined(@__MODULE__, :skip_download) || !skip_download
@@ -76,6 +77,13 @@ using Test
                 filtersequences!(msa, coverage(msa) .>= 0.9)
                 filtersequences!(msa, startswith.(names(msa.matrix, 1), Ref("K7N7")))
 
+                sim0 = percentsimilarity(msa); sim0 = sum(sim0[i-1, i] for i = 2:nsequences(msa))
+                tour = sortperm_msa(msa)
+                @test isperm(tour)
+                msa = msa[tour,:]
+                sim = percentsimilarity(msa); sim = sum(sim[i-1, i] for i = 2:nsequences(msa))
+                @test sim >= sim0
+
                 msaentropies = columnwise_entropy(msa)
                 conserved_cols = findall(msaentropies .< 0.5)
 
@@ -85,35 +93,54 @@ using Test
                 p = sortperm(sequencenames(msa))
                 fns = fns[invperm(p)]  # now the filenames correspond to the rows of msa
 
-                c1, c5 = getchain(fns[1]), getchain(fns[5])
+                c1, c2 = getchain(fns[1]), getchain(fns[5])
                 conserved_residues = c1[SequenceMapping(getsequencemapping(msa, 1))[conserved_cols]]
                 badidx = findall(==(nothing), conserved_residues)
                 conserved_residues = convert(Vector{PDBResidue}, conserved_residues[Not(badidx)])
                 conserved_cols = conserved_cols[Not(badidx)]
-                sm = SequenceMapping(getsequencemapping(msa, 5))
-                c5a = align(conserved_residues, c5, sm[conserved_cols])
-                @test rmsd(conserved_residues, c5a[sm[conserved_cols]]; superimposed=true) < rmsd(conserved_residues, c5[sm[conserved_cols]]; superimposed=true)
+                sm = SequenceMapping(getsequencemapping(msa, 2))
+                c2a = align(conserved_residues, c2, sm[conserved_cols])
+                @test rmsd(conserved_residues, c2a[sm[conserved_cols]]; superimposed=true) < rmsd(conserved_residues, c2[sm[conserved_cols]]; superimposed=true)
+                mc = mapclosest(c1, c2a)
 
-                cl = chargelocations(c1)
-                lpos = positive_locations(cl)
+                cloc = chargelocations(c1)
+                lpos = positive_locations(cloc)
                 @test !isempty(lpos) && all(item -> isa(item, Coordinates), lpos)
-                lneg = negative_locations(cl)
+                lneg = negative_locations(cloc)
                 @test !isempty(lneg) && all(item -> isa(item, Coordinates), lneg)
                 @test isempty(lpos ∩ lneg)
 
-                c3 = getchain(fns[3])
-                sa = StructAlign(c3, c5, joinpath(@__DIR__, "tmalign_3_5.txt"))
+                # Choose a sufficiently-divergent pair that structural alignment is nontrivial
+                idxref = findfirst(str -> startswith(str, "K7N701"), sequencenames(msa))
+                idxcmp = findfirst(str -> startswith(str, "K7N778"), sequencenames(msa))
+                cref, ccmp = getchain(fns[idxref]), getchain(fns[idxcmp])
+                sa = StructAlign(cref, ccmp, joinpath(@__DIR__, "tmalign.txt"))
                 @test !ismapped(sa, 1, nothing)
                 @test  ismapped(sa, 11, nothing)
                 @test  ismapped(sa, nothing, 1)
-                @test !ismapped(sa, nothing, length(c5))
-                @test_throws BoundsError ismapped(sa, nothing, length(c5)+1)
+                @test !ismapped(sa, nothing, length(ccmp))
+                @test_throws BoundsError ismapped(sa, nothing, length(ccmp)+1)
                 @test_throws BoundsError residueindex(sa, 1, nothing)
                 @test residueindex(sa, 2, nothing, 1) == 1
                 @test residueindex(sa, 12, nothing, -1) == 1
                 @test residueindex(sa, nothing, 1) == 11
-                @test residueindex(sa, nothing, length(c5), -1) == 304
+                @test residueindex(sa, nothing, length(ccmp), -1) == 304
                 @test residueindex(sa, 304, nothing) == 296
+                conserved_cols = findall(msaentropies .< 0.5)
+                smref = SequenceMapping(getsequencemapping(msa, idxref))[conserved_cols]
+                keep = (!iszero).(smref)
+                conserved_cols = conserved_cols[keep]
+                smref = smref[keep]
+                conserved_residues = cref[smref]
+                smcmp = SequenceMapping(getsequencemapping(msa, idxcmp))
+                ccmpa = align(conserved_residues, ccmp, smcmp[conserved_cols])
+                mc = mapclosest(cref, ccmpa)
+                idxclose = first.(filter(item -> item[2] < 5.0, mc))   # TMAlign scores those closer than 5Å as a match
+                n = 0; for i in Iterators.drop(eachindex(idxclose), 1)
+                     n += idxclose[i] < idxclose[i-1]
+                end
+                @test n < 0.05 * length(idxclose)  # almost sorted
+                @test length(setdiff(idxclose, sa.m2.a2s)) < 0.05 * length(idxclose)  # almost same as TMalign
             end
         end
     end

@@ -13,7 +13,7 @@ function project_sequences(msa::AbstractMultipleSequenceAlignment; fracvar::Real
     cl = cumsum(f.λ)
     cl ./= cl[end]
     nd = findfirst(>=(fracvar), cl)
-    X = transform(f)
+    X = predict(f)
     return X[1:nd, :]
 end
 

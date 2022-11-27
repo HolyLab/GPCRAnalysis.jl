@@ -1,7 +1,7 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
@@ -19,7 +19,7 @@ TravelingSalesmanHeuristics = "8c8f4381-2cdd-507c-846c-be2bcff6f45f"
 Distances = "0.10"
 Hungarian = "0.6"
 MIToS = "2"
-MultivariateStats = "0.8, 0.9"
+MultivariateStats = "0.9, 0.10"
 Rotations = "1"
 StaticArrays = "1"
 TravelingSalesmanHeuristics = "0.3"
