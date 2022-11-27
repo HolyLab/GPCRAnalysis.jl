@@ -31,8 +31,8 @@ const aa_properties = Dict(
 )
 
 # z-score the amino acid features using the full covariance matrix
-featμ = sum(p for (r, p) in aa_properties)/length(aa_properties)
-featC = sum((Δp = p - featμ; Δp*Δp') for (r, p) in aa_properties)/(length(aa_properties)-1)
-featChol = cholesky(featC)
+const featμ = sum(p for (r, p) in aa_properties)/length(aa_properties)
+const featC = sum((Δp = p - featμ; Δp*Δp') for (r, p) in aa_properties)/(length(aa_properties)-1)
+const featChol = cholesky(featC)
 
 const aa_properties_zscored = Dict(r => SVector{3}(featChol.L \ (p - featμ)) for (r, p) in aa_properties)

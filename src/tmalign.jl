@@ -20,6 +20,10 @@ end
 function parse_tma(filename)
     lines = readlines(filename)
     filter!(!isempty, lines)
+    idx = findfirst(line -> occursin("denotes", line), lines)  # check for the header
+    if idx !== nothing
+        lines = lines[idx+1:end]
+    end
     length(lines) == 3 || error("expecting 3 lines, got $(length(lines))")
     seq1 = [Residue(c) for c in lines[1]]
     seq2 = [Residue(c) for c in lines[3]]

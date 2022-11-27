@@ -41,6 +41,8 @@ function columnwise_entropy(msa::AbstractMultipleSequenceAlignment, aacode=reduc
     return map(_entropy, eachcol(resnum))
 end
 
+MSA.Residue(r::PDBResidue) = three2residue(r.id.name)
+
 """
     residue_centroid(r::PDBResidue)
 
