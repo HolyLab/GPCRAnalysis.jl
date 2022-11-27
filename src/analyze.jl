@@ -13,7 +13,7 @@ function project_sequences(msa::AbstractMultipleSequenceAlignment; fracvar::Real
     cl = cumsum(f.λ)
     cl ./= cl[end]
     nd = findfirst(>=(fracvar), cl)
-    X = transform(f)
+    X = predict(f)
     return X[1:nd, :]
 end
 
@@ -40,6 +40,8 @@ function columnwise_entropy(msa::AbstractMultipleSequenceAlignment, aacode=reduc
     resnum = map(r -> aacode[r], getresidues(msa))
     return map(_entropy, eachcol(resnum))
 end
+
+MSA.Residue(r::PDBResidue) = three2residue(r.id.name)
 
 """
     residue_centroid(r::PDBResidue)

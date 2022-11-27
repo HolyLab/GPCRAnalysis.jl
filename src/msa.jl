@@ -64,7 +64,9 @@ Base.setindex!(sm::SequenceMapping, v, i::Int) = sm.seqmap[i] = v
 Base.similar(::SequenceMapping, ::Type{Int}, dims::Dims{1}) = SequenceMapping(Vector{Int}(undef, dims))
 
 # We restrict the following to `Vector` to prevent ambiguities
-Base.getindex(fullseqvec::Vector{T}, sm::SequenceMapping) where T = Union{T,Nothing}[i == 0 ? nothing : fullseqvec[i] for i in sm.seqmap]
+Base.getindex(fullseqvec::Vector{T}, sm::SequenceMapping) where T = any(iszero, sm.seqmap) ?
+    Union{T,Nothing}[i == 0 ? nothing : fullseqvec[i] for i in sm.seqmap] :
+    T[fullseqvec[i] for i in sm.seqmap]
 
 function Base.setindex!(fullseqvec::Vector, colvalues::AbstractVector, sm::SequenceMapping)
     idxnz = sm.seqmap .> 0
