@@ -13,6 +13,7 @@ using MultivariateStats
 using Distances
 using Hungarian
 using StaticArrays
+using StructArrays
 using TravelingSalesmanHeuristics
 
 export @res_str
@@ -21,7 +22,8 @@ export SequenceMapping
 export species, uniprotX
 export try_download_alphafold, download_alphafolds, getchain, findall_subseq
 export filter_species!, filter_long!, sortperm_msa, chimerax_script
-export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, mapclosest, chargelocations, positive_locations, negative_locations
+export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, mapclosest
+export chargelocations, positive_locations, negative_locations, charge_magnitudes, fields
 export StructAlign, residueindex, ismapped
 export BWScheme, lookupbw
 export aa_properties, aa_properties_zscored

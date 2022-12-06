@@ -146,3 +146,81 @@ end
 
 positive_locations(chargelocs::AbstractVector{Tuple{Coordinates,Int,String}}) = [loc[1] for loc in chargelocs if loc[3] ∈ ("ARG", "LYS", "HIS")]
 negative_locations(chargelocs::AbstractVector{Tuple{Coordinates,Int,String}}) = [loc[1] for loc in chargelocs if loc[3] ∈ ("ASP", "GLU")]
+
+_charge_magnitude(aa) = aa == "LYS" ? 1.0 :
+                        aa ∈ ("ARG", "HIS") ? 0.5 :
+                        aa ∈ ("ASP", "GLU") ? -0.5 : 0.0
+charge_magnitudes(chargelocs::AbstractVector{Tuple{Coordinates,Int,String}}) = [loc[1] => _charge_magnitude(loc[3]) for loc in chargelocs]
+
+struct Fields{T} <: FieldVector{2, T}
+    electrostatic::T
+    steric::T
+end
+
+gvwr(resname, a::PDBAtom) = get(vanderwaalsradius,
+                                (resname, a.atom),
+                                get(vanderwaalsradius, (resname, a.element), nothing))
+steric(x::Coordinates, y::Coordinates, σ) = exp(-distance(x, y)^2 / (2 * σ^2))
+function steric(x::Coordinates, pdb::AbstractVector{PDBResidue}, σfac=1)
+    s = 0.0
+    for aa in pdb
+        resname = aa.id.name
+        for a in aa.atoms
+            vdwr = gvwr(resname, a)
+            vdwr === nothing && continue
+            s += steric(x, a.coordinates, vdwr * σfac)
+        end
+    end
+    return s
+end
+function steric!(ss::AbstractArray, xs::AbstractArray{Coordinates}, pdb::AbstractVector{PDBResidue}, σfac=1)
+    # Performance optimization of `steric`
+    axes(ss) == axes(xs) || throw(DimensionMismatch("ss and xs must have commensurate axes, got $(axes(ss)) and $(axes(xs))"))
+    fill!(ss, 0.0)
+    for aa in pdb
+        resname = aa.id.name
+        for a in aa.atoms
+            vdwr = gvwr(resname, a)
+            vdwr === nothing && continue
+            for (i, x) in pairs(xs)
+                ss[i] += steric(x, a.coordinates, vdwr * σfac)
+            end
+        end
+    end
+    return ss
+end
+
+const membrane_width = 34  # Å, hydrophobic thickness (see https://pubs.rsc.org/en/content/articlehtml/2016/sm/c6sm01777k)
+const λB1 = 568   # Bjerrum length for ϵr = 1, in Å
+
+function dielectric(density::Real, location::Coordinates)
+    extramembrane = 1 / (1 + exp(abs(2*location[3]/membrane_width)^2))
+    ϵext = 25 * extramembrane + 2.2 * (1-extramembrane)
+    return 6.5 * density + ϵext * (1 - density)
+end
+
+function fields(pdb::AbstractVector{PDBResidue}, locations, r0=1.0)
+    sterics = similar(locations, Float64)
+    steric!(sterics, locations, pdb)
+    # Get the local dielectric constant: see
+    #   On the Dielectric "Constant" of Proteins: Smooth Dielectric Function for Macromolecular Modeling and Its Implementation in DelPhi,
+    #   Lin Li, Chuan Li, Zhe Zhang, Emil Alexov
+    #   J Chem Theory Comput. 2013 Apr 9;9(4):2126-2136. doi: 10.1021/ct400065j
+    # https://pubmed.ncbi.nlm.nih.gov/23585741/
+    # We use the "density" as an indicator of whether we are interior or exterior
+    density = similar(locations, Float64)
+    steric!(density, locations, pdb, 5.0)
+    dmin, dmax = extrema(density)
+    dielec = dielectric.((density .- dmin) ./ (dmax - dmin), locations)
+    cmags = charge_magnitudes(chargelocations(pdb))
+    electrostatic = similar(locations, Float64)
+    fill!(electrostatic, 0.0)
+    for (i, x) in pairs(locations)
+        λ = λB1 / dielec[i]
+        for (y, v) in cmags
+            r = distance(x, y) + r0
+            electrostatic[i] += v/r * exp(-r/λ)
+        end
+    end
+    return StructArray{Fields{Float64}}((; electrostatic, steric=sterics))
+end
