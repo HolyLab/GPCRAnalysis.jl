@@ -160,20 +160,31 @@ end
 gvwr(resname, a::PDBAtom) = get(vanderwaalsradius,
                                 (resname, a.atom),
                                 get(vanderwaalsradius, (resname, a.element), nothing))
-steric(x::Coordinates, y::Coordinates, σ) = exp(-distance(x, y)^2 / (2 * σ^2))
-function steric(x::Coordinates, pdb::AbstractVector{PDBResidue}, σfac=1)
+
+# Repulsive "meta-potentials" to estimate steric interactions
+gaussian(x::Coordinates, y::Coordinates, σ) = exp(-distance(x, y)^2 / (2 * σ^2))
+
+function lennardjones(x::Coordinates, y::Coordinates, σ)
+    # Lennard-Jones potential
+    r = distance(x, y)
+    k = σ / r
+    k6 = k^6
+    return iszero(r) ? Inf : k6^2 - k6
+end
+
+function steric(f::F, x::Coordinates, pdb::AbstractVector{PDBResidue}, σfac=1) where F
     s = 0.0
     for aa in pdb
         resname = aa.id.name
         for a in aa.atoms
             vdwr = gvwr(resname, a)
             vdwr === nothing && continue
-            s += steric(x, a.coordinates, vdwr * σfac)
+            s += f(x, a.coordinates, vdwr * σfac)
         end
     end
     return s
 end
-function steric!(ss::AbstractArray, xs::AbstractArray{Coordinates}, pdb::AbstractVector{PDBResidue}, σfac=1)
+function steric!(f::F, ss::AbstractArray, xs::AbstractArray{Coordinates}, pdb::AbstractVector{PDBResidue}, σfac=1) where F
     # Performance optimization of `steric`
     axes(ss) == axes(xs) || throw(DimensionMismatch("ss and xs must have commensurate axes, got $(axes(ss)) and $(axes(xs))"))
     fill!(ss, 0.0)
@@ -183,7 +194,7 @@ function steric!(ss::AbstractArray, xs::AbstractArray{Coordinates}, pdb::Abstrac
             vdwr = gvwr(resname, a)
             vdwr === nothing && continue
             for (i, x) in pairs(xs)
-                ss[i] += steric(x, a.coordinates, vdwr * σfac)
+                ss[i] += f(x, a.coordinates, vdwr * σfac)
             end
         end
     end
@@ -194,14 +205,15 @@ const membrane_width = 34  # Å, hydrophobic thickness (see https://pubs.rsc.or
 const λB1 = 568   # Bjerrum length for ϵr = 1, in Å
 
 function dielectric(density::Real, location::Coordinates)
-    extramembrane = 1 / (1 + exp(abs(2*location[3]/membrane_width)^2))
-    ϵext = 25 * extramembrane + 2.2 * (1-extramembrane)
+    extramembrane = 1 / (1 + exp(abs(2*location[3]/membrane_width)^8))
+    # @assert 0.0 <= extramembrane <= 1.0
+    ϵext = 30 * extramembrane + 2.2 * (1-extramembrane)
     return 6.5 * density + ϵext * (1 - density)
 end
 
-function fields(pdb::AbstractVector{PDBResidue}, locations, r0=1.0)
+function fields(pdb::AbstractVector{PDBResidue}, locations, r0=0.0)
     sterics = similar(locations, Float64)
-    steric!(sterics, locations, pdb)
+    steric!(lennardjones, sterics, locations, pdb)
     # Get the local dielectric constant: see
     #   On the Dielectric "Constant" of Proteins: Smooth Dielectric Function for Macromolecular Modeling and Its Implementation in DelPhi,
     #   Lin Li, Chuan Li, Zhe Zhang, Emil Alexov
@@ -209,7 +221,7 @@ function fields(pdb::AbstractVector{PDBResidue}, locations, r0=1.0)
     # https://pubmed.ncbi.nlm.nih.gov/23585741/
     # We use the "density" as an indicator of whether we are interior or exterior
     density = similar(locations, Float64)
-    steric!(density, locations, pdb, 5.0)
+    steric!(gaussian, density, locations, pdb)
     dmin, dmax = extrema(density)
     dielec = dielectric.((density .- dmin) ./ (dmax - dmin), locations)
     cmags = charge_magnitudes(chargelocations(pdb))
