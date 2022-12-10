@@ -12,6 +12,7 @@ using MIToS.PDB
 using MultivariateStats
 using Distances
 using Hungarian
+using ProgressMeter
 using StaticArrays
 using TravelingSalesmanHeuristics
 
