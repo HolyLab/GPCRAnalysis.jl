@@ -34,5 +34,6 @@ include("analyze.jl")
 include("tmalign.jl")
 include("ballesteros_weinstein.jl")
 include("properties.jl")
+include("chimerax.jl")
 
 end

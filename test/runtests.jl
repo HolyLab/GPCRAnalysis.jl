@@ -56,6 +56,22 @@ using Test
         @test size(project_sequences(msa)) == (3, 4)
         @test size(project_sequences(msa; fracvar=0.5)) == (1, 4)
     end
+    @testset "ChimeraX" begin
+        tmpfile = tempname() * ".cxc"
+        chimerax_script(tmpfile, ["ABCD.pdb", "EFGH.pdb"], [[5, 10, 15], [7, 11]])
+        script = read(tmpfile, String)
+        @test occursin("open ABCD", script)
+        @test occursin("open EFGH", script)
+        @test occursin("show #1 :5", script)
+        @test occursin("show #2 :11", script)
+        @test occursin("transparency #1-2 80 target c", script)
+        @test occursin("matchmaker #2-2 to #1", script)
+        dots = GPCRAnalysis.markers(2, [Coordinates(5, 4, 3)], 0.5, "blue")
+        chimerax_script(tmpfile, ["align_ABCD.pdb", "align_EFGH.pdb"], [[5, 10, 15], [7, 11]]; extras=dots)
+        script = read(tmpfile, String)
+        @test !occursin("matchmaker #2-2 to #1", script)
+        @test occursin("marker #2 position 5.0,4.0,3.0 radius 0.5 color blue", script)
+    end
 
     if !isdefined(@__MODULE__, :skip_download) || !skip_download
         @testset "AlphaFold" begin
@@ -141,6 +157,18 @@ using Test
                 end
                 @test n < 0.05 * length(idxclose)  # almost sorted
                 @test length(setdiff(idxclose, sa.m2.a2s)) < 0.05 * length(idxclose)  # almost same as TMalign
+
+                chimerafile = tempname() * ".cxc"
+                chimerax_script(chimerafile, ["K7N775", "K7N731"], msa, [66, 69]; dir="somedir")
+                script = read(chimerafile, String)
+                @test  occursin("open somedir/AF-K7N775", script)
+                @test  occursin("open somedir/AF-K7N731", script)
+                @test !occursin("open somedir/AF-K7N701", script)
+                @test occursin("show #1 :67", script)
+                @test occursin("show #1 :70", script)
+                @test occursin("show #2 :70", script)
+                @test occursin("show #2 :73", script)
+                @test occursin("matchmaker #2-2 to #1", script)
             end
         end
     end
