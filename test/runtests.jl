@@ -72,7 +72,7 @@ using Test
         @test !occursin("matchmaker #2-2 to #1", script)
         @test occursin("marker #2 position 5.0,4.0,3.0 radius 0.5 color blue", script)
     end
-    @testset "Pocket residues" begin
+    @testset "Pocket residues and features" begin
         opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
         opsd = align_to_axes(opsd)
         opsdr = [three2residue(r.id.name) for r in opsd]
@@ -102,6 +102,16 @@ using Test
             @test length(ecl) == length(opsd_ecls[i])
             @test isa(ecl, Vector{Bool})
         end
+
+        tm_idxs = vcat([opsd_tms[[2,3,5,6,7]][i][tm_res[i]] for i=1:5]...)
+        tm_mgmm = features_from_structure(opsd, tm_idxs)
+        tm_mgmm_combined = features_from_structure(opsd, tm_idxs; combined=true)
+        @test sum(length, values(tm_mgmm.gmms)) > sum(length, values(tm_mgmm_combined.gmms))
+
+        ecl_idxs = vcat([opsd_ecls[i][ecl_res[i]] for i=1:4]...)
+        ecl_mgmm = features_from_structure(opsd, ecl_idxs)
+        ecl_mgmm_combined = features_from_structure(opsd, ecl_idxs; combined=true)
+        @test sum(length, values(ecl_mgmm.gmms)) > sum(length, values(ecl_mgmm_combined.gmms))
     end
 
     if !isdefined(@__MODULE__, :skip_download) || !skip_download

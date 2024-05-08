@@ -32,6 +32,7 @@ export StructAlign, residueindex, ismapped
 export BWScheme, lookupbw
 export aa_properties, aa_properties_zscored
 export sidechaincentroid, scvector, inward_tm_residues, inward_ecl_residues
+export features_from_structure
 
 include("naming_conventions.jl")
 include("utils.jl")
@@ -42,5 +43,6 @@ include("ballesteros_weinstein.jl")
 include("properties.jl")
 include("chimerax.jl")
 include("pocket.jl")
+include("features.jl")
 
 end
