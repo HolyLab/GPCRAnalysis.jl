@@ -72,3 +72,11 @@ function findall_subseq(subseq, seq)
     end
     return starts
 end
+
+function align_to_axes(strct)
+    coords = coordinatesmatrix(strct)
+    coords = coords .- mean(coords, dims=1)
+    tform = GaussianMixtureAlignment.inertial_transforms(coords')[1]
+    tform = AffineMap(Matrix(tform.linear),[tform.translation...])
+    return change_coordinates(strct, tform(coords')')
+end

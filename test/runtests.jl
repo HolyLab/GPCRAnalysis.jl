@@ -72,6 +72,37 @@ using Test
         @test !occursin("matchmaker #2-2 to #1", script)
         @test occursin("marker #2 position 5.0,4.0,3.0 radius 0.5 color blue", script)
     end
+    @testset "Pocket residues" begin
+        opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd = align_to_axes(opsd)
+        opsdr = [three2residue(r.id.name) for r in opsd]
+        opsd_tms = [only(findall_subseq(res"PWQF", opsdr)):only(findall_subseq(res"VTVQ", opsdr))+3,
+                    only(findall_subseq(res"NYIL", opsdr)):only(findall_subseq(res"YTSL", opsdr))+3,
+                    only(findall_subseq(res"PTGC", opsdr)):only(findall_subseq(res"YVVV", opsdr))+3,
+                    only(findall_subseq(res"ENHA", opsdr)):only(findall_subseq(res"PPLV", opsdr))+3,
+                    only(findall_subseq(res"NESF", opsdr)):only(findall_subseq(res"LVFT", opsdr))+3,
+                    only(findall_subseq(res"AEKE", opsdr)):only(findall_subseq(res"YIFT", opsdr))+3,
+                    only(findall_subseq(res"PIFM", opsdr)):only(findall_subseq(res"YIML", opsdr))+3,
+        ]
+        tm_res = inward_tm_residues(opsd, opsd_tms[[2,3,5,6,7]])
+        @test length(tm_res) == 5
+        for (i,tm) in enumerate(tm_res)
+            @test length(tm) == length(opsd_tms[[2,3,5,6,7]][i])
+            @test isa(tm, Vector{Bool})
+        end
+
+        opsd_ecls = [1:opsd_tms[1][1]-1,
+                     opsd_tms[2][end]+1:opsd_tms[3][1]-1,
+                     opsd_tms[4][end]+1:opsd_tms[5][1]-1,
+                     opsd_tms[6][end]+1:opsd_tms[7][1]-1,
+        ]
+        ecl_res = inward_ecl_residues(opsd, opsd_ecls)
+        @test length(ecl_res) == length(opsd_ecls)
+        for (i,ecl) in enumerate(ecl_res)
+            @test length(ecl) == length(opsd_ecls[i])
+            @test isa(ecl, Vector{Bool})
+        end
+    end
 
     if !isdefined(@__MODULE__, :skip_download) || !skip_download
         @testset "AlphaFold" begin

@@ -16,16 +16,22 @@ using ProgressMeter
 using StaticArrays
 using TravelingSalesmanHeuristics
 
+using Interpolations
+using MutableConvexHulls
+using CoordinateTransformations
+using GaussianMixtureAlignment
+
 export @res_str
 
 export SequenceMapping
 export species, uniprotX
-export try_download_alphafold, download_alphafolds, getchain, findall_subseq
+export try_download_alphafold, download_alphafolds, getchain, findall_subseq, align_to_axes
 export filter_species!, filter_long!, sortperm_msa, chimerax_script
-export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, mapclosest, chargelocations, positive_locations, negative_locations
+export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, alphacarbon_coordinates, alphacarbon_coordinates_matrix, mapclosest, chargelocations, positive_locations, negative_locations
 export StructAlign, residueindex, ismapped
 export BWScheme, lookupbw
 export aa_properties, aa_properties_zscored
+export sidechaincentroid, scvector, inward_tm_residues, inward_ecl_residues
 
 include("naming_conventions.jl")
 include("utils.jl")
@@ -35,5 +41,6 @@ include("tmalign.jl")
 include("ballesteros_weinstein.jl")
 include("properties.jl")
 include("chimerax.jl")
+include("pocket.jl")
 
 end
