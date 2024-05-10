@@ -4,12 +4,16 @@ authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
 version = "0.1.2"
 
 [deps]
+CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+GaussianMixtureAlignment = "f2431ed1-b9c2-4fdb-af1b-a74d6c93b3b3"
 Hungarian = "e91730f6-4275-51fb-a7a0-7064cfbd3b39"
+Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MIToS = "51bafb47-8a16-5ded-8b04-24ef4eede0b5"
 MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
+MutableConvexHulls = "948c7aac-0e5e-4631-af23-7a6bb7a17825"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -17,15 +21,19 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 TravelingSalesmanHeuristics = "8c8f4381-2cdd-507c-846c-be2bcff6f45f"
 
 [compat]
+CoordinateTransformations = "0.6"
 Distances = "0.10"
+GaussianMixtureAlignment = "0.1.9"
 Hungarian = "0.6, 0.7"
+Interpolations = "0.15"
 MIToS = "2"
 MultivariateStats = "0.9, 0.10"
+MutableConvexHulls = "0.2"
 ProgressMeter = "1"
 Rotations = "1"
 StaticArrays = "1"
 TravelingSalesmanHeuristics = "0.3"
-julia = "1.6"
+julia = "1.10"
 
 [extras]
 InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"

@@ -63,6 +63,22 @@ Return a matrix of all residue centroids as columns. See also [`residue_centroid
 residue_centroid_matrix(seq) = reduce(hcat, map(residue_centroid, seq))
 
 """
+    alphacarbon_coordinates(res::PDBResidue)
+
+Return the coordinates of the α-carbon in `res`.
+"""
+alphacarbon_coordinates(r) = r.atoms[findfirst(a -> a.atom === "CA", r.atoms)].coordinates
+
+"""
+    alphacarbon_coordinates_matrix(seq)
+
+Return a matrix of αC coordinates as columns across all residues. See also [`alphacarbon_coordinates`](@ref).
+"""
+function alphacarbon_coordinates_matrix(seq)
+    return hcat([[r.atoms[findfirst(a -> a.atom === "CA", r.atoms)].coordinates...] for r in seq]...)
+end
+
+"""
     align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
     align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
 
@@ -80,7 +96,7 @@ function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResi
     fixedpos = fixedpos[:,keep]
     refmean = mean(fixedpos; dims=2)
     movmean = mean(movpos; dims=2)
-    R = kabsch((fixedpos .- refmean)', (movpos .- movmean)')
+    R = MIToS.PDB.kabsch((fixedpos .- refmean)', (movpos .- movmean)')
     return change_coordinates(moving, (coordinatesmatrix(moving) .- movmean') * R .+ refmean')
 end
 align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; kwargs...) =
