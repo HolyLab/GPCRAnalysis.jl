@@ -106,12 +106,28 @@ using Test
         tm_idxs = vcat([opsd_tms[[2,3,5,6,7]][i][tm_res[i]] for i=1:5]...)
         tm_mgmm = features_from_structure(opsd, tm_idxs)
         tm_mgmm_combined = features_from_structure(opsd, tm_idxs; combined=true)
+        tm_mgmm_combined_2 = features_from_structure(opsd, tm_idxs; combined=true, σfun=GPCRAnalysis.equalvolumeradius, ϕfun=(a,r)->1.0)
         @test sum(length, values(tm_mgmm.gmms)) > sum(length, values(tm_mgmm_combined.gmms))
+        for key in keys(tm_mgmm.gmms)
+            for (g1, g2) in zip(tm_mgmm_combined.gmms[key].gaussians, tm_mgmm_combined_2.gmms[key].gaussians)
+                @test g1.μ == g2.μ
+                @test g1.σ >= g2.σ
+                @test g1.ϕ >= g2.ϕ
+            end
+        end
 
         ecl_idxs = vcat([opsd_ecls[i][ecl_res[i]] for i=1:4]...)
         ecl_mgmm = features_from_structure(opsd, ecl_idxs)
         ecl_mgmm_combined = features_from_structure(opsd, ecl_idxs; combined=true)
+        ecl_mgmm_combined_2 = features_from_structure(opsd, ecl_idxs; combined=true, σfun=GPCRAnalysis.equalvolumeradius, ϕfun=(a,r)->1.0)
         @test sum(length, values(ecl_mgmm.gmms)) > sum(length, values(ecl_mgmm_combined.gmms))
+        for key in keys(ecl_mgmm.gmms)
+            for (g1, g2) in zip(ecl_mgmm_combined.gmms[key].gaussians, ecl_mgmm_combined_2.gmms[key].gaussians)
+                @test g1.μ == g2.μ
+                @test g1.σ >= g2.σ
+                @test g1.ϕ >= g2.ϕ
+            end
+        end
     end
 
     if !isdefined(@__MODULE__, :skip_download) || !skip_download
