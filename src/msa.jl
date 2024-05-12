@@ -39,6 +39,15 @@ function filter_long!(msa::AbstractMultipleSequenceAlignment, minres::Real)
     filtersequences!(msa, mask)
 end
 
+"""
+    ac = accession_code(msa, seqname)
+
+Return the Uniprot accession code associated with `seqname`.
+"""
+function accession_code(msa::AnnotatedMultipleSequenceAlignment, seqname)
+    uniprotX(getannotsequence(msa, seqname, "AC", seqname))
+end
+
 # Move this to MIToS?
 if !hasmethod(getsequencemapping, Tuple{AnnotatedAlignedSequence})
     function MIToS.MSA.getsequencemapping(seq::AnnotatedAlignedSequence)

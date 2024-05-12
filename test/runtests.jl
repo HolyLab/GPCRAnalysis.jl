@@ -22,6 +22,9 @@ using Test
         @test_throws ErrorException uniprotX("Q8VGW67_MOUSE/31-308")
         @test_throws ErrorException uniprotX("q8vgw6_MOUSE/31-308")
         @test_throws ErrorException uniprotX("QV8GW6_MOUSE/31-308")
+
+        # Versioned
+        @test uniprotX("Q8VGW6.37") == "Q8VGW6"
     end
 
     @testset "Ballesteros-Weinstein" begin
@@ -131,13 +134,26 @@ using Test
     end
 
     if !isdefined(@__MODULE__, :skip_download) || !skip_download
+        @testset "Uniprot" begin
+            @test query_uniprot_accession("T2R38_MOUSE") == "Q7TQA6"
+        end
+
         @testset "AlphaFold" begin
             @test try_download_alphafold("garbage") === nothing
-            fn = tempname()
-            @test try_download_alphafold("K7N608", fn) == fn
-            @test isfile(fn)
-            @test getchain(fn) isa AbstractVector{MIToS.PDB.PDBResidue}
-            rm(fn)
+            uname = "K7N608"
+            url = query_alphafold_latest(uname)
+            v = parse(Int, match(GPCRAnalysis.rex_alphafold_pdbs, url).captures[2])
+            mktempdir() do dir
+                fn = split(url, '/')[end]
+                absfn = joinpath(dir, fn)
+                @test try_download_alphafold(uname, absfn; version=v) == absfn
+                @test isfile(absfn)
+                @test getchain(absfn) isa AbstractVector{MIToS.PDB.PDBResidue}
+                @test only(alphafoldfiles(dir)) == fn
+            end
+        end
+
+        @testset "MSA + AlphaFold" begin
             mktempdir() do path
                 pfamfile = "PF03402.alignment.full.gz"
                 pfampath = joinpath(path, pfamfile)

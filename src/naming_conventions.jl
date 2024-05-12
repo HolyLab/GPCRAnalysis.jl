@@ -34,7 +34,8 @@ function species(name::AbstractString)
 end
 
 const rex_uniprotX_Swiss = r"^([A-Z0-9]{1,5})($|_)"   # Swiss
-const rex_uniprot_accession = r"^([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2})($|_)"
+const rex_uniprot_accession = r"^([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:$|_|\.\d+)"
+const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+).pdb"
 
 """
     uniprotX(name)
@@ -56,4 +57,33 @@ function uniprotX(name::AbstractString)::AbstractString
     m = match(rex_uniprot_accession, name)
     m !== nothing && return m.captures[1]
     error("no UniProt X identifier found")
+end
+
+"""
+    accession_code = query_uniprot_accession(id)
+
+Perform a Uniprot search for `id`, returning the canonical accession code.
+
+# Examples
+
+```
+julia> query_uniprot_accession("T2R38_MOUSE")
+"Q7TQA6"
+```
+"""
+function query_uniprot_accession(id)
+    resp = HTTP.get("https://rest.uniprot.org/uniprotkb/search?query=id:$id&format=json")
+    if resp.status == 200
+        return mktemp() do tmppath, tmpio
+            body = String(resp.body)
+            write(tmpio, body)
+            flush(tmpio)
+            uncompr_body = GZip.open(tmppath) do iogz
+                read(iogz, String)
+            end
+            j = JSON.parse(uncompr_body)
+            return j["results"][1]["primaryAccession"]
+        end
+    end
+    return nothing
 end
