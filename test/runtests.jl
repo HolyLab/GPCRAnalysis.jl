@@ -58,6 +58,10 @@ using Test
 
         @test size(project_sequences(msa)) == (3, 4)
         @test size(project_sequences(msa; fracvar=0.5)) == (1, 4)
+
+        @test AccessionCode(msa, MSACode("Y070_ATV/2-70")) == AccessionCode("Q3V4T1")
+        @test MSACode(msa, AccessionCode("Q3V4T1")) == MSACode("Y070_ATV/2-70")
+        @test msa[MSACode("Y070_ATV/2-70")][8] == msa[AccessionCode("Q3V4T1")][8] == Residue('V')
     end
     @testset "ChimeraX" begin
         tmpfile = tempname() * ".cxc"

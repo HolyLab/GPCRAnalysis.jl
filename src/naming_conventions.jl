@@ -1,3 +1,14 @@
+abstract type NamingConvention end
+
+struct MSACode <: NamingConvention
+    name::String
+end
+struct AccessionCode <: NamingConvention
+    name::String
+end
+
+Base.:(==)(a::T, b::T) where T<:NamingConvention = a.name == b.name
+
 const rex_resrange = r"/(\d+)-(\d+)$"
 function residue_range(name::AbstractString)
     m = match(rex_resrange, name)

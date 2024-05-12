@@ -28,8 +28,8 @@ using GZip
 
 export @res_str
 
-export SequenceMapping
-export species, uniprotX, accession_code, query_uniprot_accession
+export SequenceMapping, AccessionCode, MSACode
+export species, uniprotX, query_uniprot_accession
 export try_download_alphafold, query_alphafold_latest, download_alphafolds, alphafoldfiles, getchain, findall_subseq, align_to_axes
 export filter_species!, filter_long!, sortperm_msa, chimerax_script
 export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, alphacarbon_coordinates, alphacarbon_coordinates_matrix, mapclosest, chargelocations, positive_locations, negative_locations
