@@ -7,6 +7,7 @@ struct AccessionCode <: NamingConvention
     name::String
 end
 
+Base.String(x::NamingConvention) = x.name
 Base.:(==)(a::T, b::T) where T<:NamingConvention = a.name == b.name
 
 const rex_resrange = r"/(\d+)-(\d+)$"

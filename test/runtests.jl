@@ -181,12 +181,10 @@ using Test
                 conserved_cols = findall(msaentropies .< 0.5)
 
                 download_alphafolds(msa; dirname=path)
-                fns = filter(fn -> endswith(fn, ".pdb"), readdir(path; join=true))
-                @test length(fns) == nsequences(msa)
-                p = sortperm(sequencenames(msa))
-                fns = fns[invperm(p)]  # now the filenames correspond to the rows of msa
+                msacode2structfile = alphafoldfiles(msa, path)
+                afnbyidx(i) = getchain(joinpath(path, msacode2structfile[MSACode(sequencenames(msa)[i])]))
 
-                c1, c2 = getchain(fns[1]), getchain(fns[5])
+                c1, c2 = getchain(afnbyidx(1)), getchain(afnbyidx(5))
                 conserved_residues = c1[SequenceMapping(getsequencemapping(msa, 1))[conserved_cols]]
                 badidx = findall(==(nothing), conserved_residues)
                 conserved_residues = convert(Vector{PDBResidue}, conserved_residues[Not(badidx)])
@@ -206,7 +204,7 @@ using Test
                 # Choose a sufficiently-divergent pair that structural alignment is nontrivial
                 idxref = findfirst(str -> startswith(str, "K7N701"), sequencenames(msa))
                 idxcmp = findfirst(str -> startswith(str, "K7N778"), sequencenames(msa))
-                cref, ccmp = getchain(fns[idxref]), getchain(fns[idxcmp])
+                cref, ccmp = getchain(afnbyidx(idxref)), getchain(afnbyidx(idxcmp))
                 sa = StructAlign(cref, ccmp, joinpath(@__DIR__, "tmalign.txt"))
                 @test !ismapped(sa, 1, nothing)
                 @test  ismapped(sa, 11, nothing)

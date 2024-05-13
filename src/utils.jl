@@ -20,6 +20,28 @@ function alphafoldfiles(dirname=pwd())
     return sort!([alphafoldfile(access_code; version=v) for (access_code, v) in latest])
 end
 
+"""
+    msacode2structfile = alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd())
+
+Return a dictionary mapping `MSACode`s to the corresponding AlphaFold structure files.
+"""
+function alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd())
+    afs = alphafoldfiles(dirname)
+    accesscode2idx = Dict{AccessionCode,Int}()
+    for (i, af) in pairs(afs)
+        ac = AccessionCode(match(rex_alphafold_pdbs, af).captures[1])
+        accesscode2idx[ac] = i
+    end
+    msacode2structfile = Dict{MSACode,String}()
+    for name in sequencenames(msa)
+        ac = AccessionCode(msa, name)
+        if haskey(accesscode2idx, ac)
+            msacode2structfile[MSACode(name)] = afs[accesscode2idx[ac]]
+        end
+    end
+    return msacode2structfile
+end
+
 function query_alphafold_latest(accession_code)
     resp = HTTP.get("https://alphafold.com/api/prediction/$accession_code")
     if resp.status == 200
