@@ -83,7 +83,7 @@ Missing entries are silently skipped.
 function download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd(), maxversion=nothing, kwargs...)
     maxversion === nothing || @warn "`download_alphafolds`: `maxversion` kwarg has no effect and is deprecated" maxlog=1
     @showprogress 1 "Downloading AlphaFold files..." for name in sequencenames(msa)
-        uname = accession_code(msa, name)
+        uname = AccessionCode(msa, name)
         url = query_alphafold_latest(uname)
         url === nothing && continue
         fn = split(url, '/')[end]
