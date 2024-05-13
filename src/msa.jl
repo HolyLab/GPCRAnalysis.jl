@@ -1,3 +1,6 @@
+Base.getindex(msa::AbstractMultipleSequenceAlignment, seqname::MSACode) = getsequence(msa, seqname.name)
+Base.getindex(msa::AbstractMultipleSequenceAlignment, seqname::AccessionCode) = getsequence(msa, MSACode(msa, seqname).name)
+
 """
     tour = sortperm_msa(msa::AbstractMultipleSequenceAlignment)
 
@@ -38,6 +41,24 @@ function filter_long!(msa::AbstractMultipleSequenceAlignment, minres::Real)
     mask = nresidues .> minres
     filtersequences!(msa, mask)
 end
+
+"""
+    ac = AccessionCode(msa, seqname)
+
+Return the Uniprot accession code associated with `seqname`.
+"""
+function AccessionCode(msa::AnnotatedMultipleSequenceAlignment, seqname::AbstractString)
+    AccessionCode(uniprotX(getannotsequence(msa, seqname, "AC", seqname)))
+end
+AccessionCode(msa::AnnotatedMultipleSequenceAlignment, seqname::MSACode) = AccessionCode(msa, seqname.name)
+AccessionCode(::AnnotatedMultipleSequenceAlignment, seqname::AccessionCode) = seqname
+
+function MSACode(msa::AnnotatedMultipleSequenceAlignment, accession::AbstractString)
+    seqnames = sequencenames(msa)
+    return MSACode(seqnames[findfirst(x -> AccessionCode(msa, x).name == accession, seqnames)])
+end
+MSACode(msa::AnnotatedMultipleSequenceAlignment, accession::AccessionCode) = MSACode(msa, accession.name)
+MSACode(::AnnotatedMultipleSequenceAlignment, accession::MSACode) = accession
 
 # Move this to MIToS?
 if !hasmethod(getsequencemapping, Tuple{AnnotatedAlignedSequence})

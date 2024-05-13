@@ -22,6 +22,9 @@ using Test
         @test_throws ErrorException uniprotX("Q8VGW67_MOUSE/31-308")
         @test_throws ErrorException uniprotX("q8vgw6_MOUSE/31-308")
         @test_throws ErrorException uniprotX("QV8GW6_MOUSE/31-308")
+
+        # Versioned
+        @test uniprotX("Q8VGW6.37") == "Q8VGW6"
     end
 
     @testset "Ballesteros-Weinstein" begin
@@ -55,6 +58,10 @@ using Test
 
         @test size(project_sequences(msa)) == (3, 4)
         @test size(project_sequences(msa; fracvar=0.5)) == (1, 4)
+
+        @test AccessionCode(msa, MSACode("Y070_ATV/2-70")) == AccessionCode("Q3V4T1")
+        @test MSACode(msa, AccessionCode("Q3V4T1")) == MSACode("Y070_ATV/2-70")
+        @test msa[MSACode("Y070_ATV/2-70")][8] == msa[AccessionCode("Q3V4T1")][8] == Residue('V')
     end
     @testset "ChimeraX" begin
         tmpfile = tempname() * ".cxc"
@@ -131,13 +138,26 @@ using Test
     end
 
     if !isdefined(@__MODULE__, :skip_download) || !skip_download
+        @testset "Uniprot" begin
+            @test query_uniprot_accession("T2R38_MOUSE") == "Q7TQA6"
+        end
+
         @testset "AlphaFold" begin
             @test try_download_alphafold("garbage") === nothing
-            fn = tempname()
-            @test try_download_alphafold("K7N608", fn) == fn
-            @test isfile(fn)
-            @test getchain(fn) isa AbstractVector{MIToS.PDB.PDBResidue}
-            rm(fn)
+            uname = "K7N608"
+            url = query_alphafold_latest(uname)
+            v = parse(Int, match(GPCRAnalysis.rex_alphafold_pdbs, url).captures[2])
+            mktempdir() do dir
+                fn = split(url, '/')[end]
+                absfn = joinpath(dir, fn)
+                @test try_download_alphafold(uname, absfn; version=v) == absfn
+                @test isfile(absfn)
+                @test getchain(absfn) isa AbstractVector{MIToS.PDB.PDBResidue}
+                @test only(alphafoldfiles(dir)) == fn
+            end
+        end
+
+        @testset "MSA + AlphaFold" begin
             mktempdir() do path
                 pfamfile = "PF03402.alignment.full.gz"
                 pfampath = joinpath(path, pfamfile)
@@ -161,12 +181,10 @@ using Test
                 conserved_cols = findall(msaentropies .< 0.5)
 
                 download_alphafolds(msa; dirname=path)
-                fns = filter(fn -> endswith(fn, ".pdb"), readdir(path; join=true))
-                @test length(fns) == nsequences(msa)
-                p = sortperm(sequencenames(msa))
-                fns = fns[invperm(p)]  # now the filenames correspond to the rows of msa
+                msacode2structfile = alphafoldfiles(msa, path)
+                afnbyidx(i) = getchain(joinpath(path, msacode2structfile[MSACode(sequencenames(msa)[i])]))
 
-                c1, c2 = getchain(fns[1]), getchain(fns[5])
+                c1, c2 = getchain(afnbyidx(1)), getchain(afnbyidx(5))
                 conserved_residues = c1[SequenceMapping(getsequencemapping(msa, 1))[conserved_cols]]
                 badidx = findall(==(nothing), conserved_residues)
                 conserved_residues = convert(Vector{PDBResidue}, conserved_residues[Not(badidx)])
@@ -186,7 +204,7 @@ using Test
                 # Choose a sufficiently-divergent pair that structural alignment is nontrivial
                 idxref = findfirst(str -> startswith(str, "K7N701"), sequencenames(msa))
                 idxcmp = findfirst(str -> startswith(str, "K7N778"), sequencenames(msa))
-                cref, ccmp = getchain(fns[idxref]), getchain(fns[idxcmp])
+                cref, ccmp = getchain(afnbyidx(idxref)), getchain(afnbyidx(idxcmp))
                 sa = StructAlign(cref, ccmp, joinpath(@__DIR__, "tmalign.txt"))
                 @test !ismapped(sa, 1, nothing)
                 @test  ismapped(sa, 11, nothing)
