@@ -53,7 +53,7 @@ function chimerax_script(scriptfilename, uprot_list, msa::AnnotatedMultipleSeque
     struct_filenames = Vector{String}(undef, length(uprot_list))
     rcstyles = Dict{Tuple{Int,Int},String}()
     for (i, p) in enumerate(uprot_list)
-        struct_filenames[i] = joinpath(dir, alphafoldfile(p))
+        struct_filenames[i] = joinpath(dir, alphafoldfilename(p))
         seqidx = findfirst(str -> startswith(str, p), sequencenames(msa))
         sm = getsequencemapping(msa, seqidx)
         for (j, c) in enumerate(colidxs)

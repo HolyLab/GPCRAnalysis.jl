@@ -1,7 +1,15 @@
 struct BWScheme
     conserved::NTuple{7,Int}
     tmspans::NTuple{7,UnitRange{Int}}
+
+    function BWScheme(conserved::NTuple{7,Integer}, tmspans::NTuple{7,AbstractUnitRange{<:Integer}})
+        for (i, rng) in zip(conserved, tmspans)
+            i ∈ rng || throw(ArgumentError("conserved residue $i not in transmembrane region $rng"))
+        end
+        return new(conserved, tmspans)
+    end
 end
+
 """
     BWScheme(conserved_idx, tmspans)
 
@@ -15,7 +23,7 @@ For mouse rhodopsin (P15409),
 
 ```julia
 julia> opsd_scheme = BWScheme([55, 83, 135, 161, 215, 267, 303],
-           [34:64, 73:99, 107:139, 150:173, 200:229, 246:277, 285:309]);
+                              [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]);
 ```
 """
 function BWScheme(bwconserved::AbstractVector, tmspans::AbstractVector)

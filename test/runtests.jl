@@ -3,6 +3,7 @@ using MIToS
 using MIToS.MSA
 using MIToS.PDB
 using InvertedIndices
+using Statistics
 using Test
 
 # skip the network-hitting components by setting `skip_download = true` in the global namespace
@@ -81,8 +82,10 @@ using Test
     end
     @testset "Pocket residues and features" begin
         opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
-        opsd = align_to_axes(opsd)
         opsdr = [three2residue(r.id.name) for r in opsd]
+        # These are not quite accurate, the actual answer is
+        #   opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
+        # but these exercise useful parts of the code
         opsd_tms = [only(findall_subseq(res"PWQF", opsdr)):only(findall_subseq(res"VTVQ", opsdr))+3,
                     only(findall_subseq(res"NYIL", opsdr)):only(findall_subseq(res"YTSL", opsdr))+3,
                     only(findall_subseq(res"PTGC", opsdr)):only(findall_subseq(res"YVVV", opsdr))+3,
@@ -91,6 +94,16 @@ using Test
                     only(findall_subseq(res"AEKE", opsdr)):only(findall_subseq(res"YIFT", opsdr))+3,
                     only(findall_subseq(res"PIFM", opsdr)):only(findall_subseq(res"YIML", opsdr))+3,
         ]
+        opsd = align_to_membrane(opsd, opsd_tms)
+        # Check the alignment
+        leaflet_e, leaflet_i = GPCRAnalysis.collect_leaflet_residues(opsd, opsd_tms, true)
+        ce = reduce(vcat, [coordinatesmatrix(r) for r in leaflet_e])
+        ci = reduce(vcat, [coordinatesmatrix(r) for r in leaflet_i])
+        ze = median(ce[:,3])
+        zi = median(ci[:,3])
+        @test ze > zi    # extracellular is positive
+        @test abs(ze + zi) < 1e-6 * (ze - zi) # center of membrane is at z=0
+
         tm_res = inward_tm_residues(opsd, opsd_tms[[2,3,5,6,7]])
         @test length(tm_res) == 5
         for (i,tm) in enumerate(tm_res)

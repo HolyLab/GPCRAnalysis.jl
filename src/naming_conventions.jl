@@ -47,7 +47,6 @@ end
 
 const rex_uniprotX_Swiss = r"^([A-Z0-9]{1,5})($|_)"   # Swiss
 const rex_uniprot_accession = r"^([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:$|_|\.\d+)"
-const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+).pdb"
 
 """
     uniprotX(name)
