@@ -1,3 +1,41 @@
+## Minimum-distance alignment
+
+"""
+    align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
+    align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
+
+Return a rotated and shifted version of `moving` so that the α-carbons of residues `moving[sm]` have least
+mean square error deviation from positions `fixedpos` or those of residues `fixed`.
+"""
+function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; seqname=nothing)
+    length(sm) == size(fixedpos, 2) || throw(DimensionMismatch("reference has $(size(fixedpos, 2)) positions, but `sm` has $(length(sm))"))
+    movres = moving[sm]
+    keep = map(!isnothing, movres)
+    if !all(keep)
+        @warn "missing $(length(keep)-sum(keep)) anchors for sequence $seqname"
+    end
+    movpos = residue_centroid_matrix(movres[keep])
+    fixedpos = fixedpos[:,keep]
+    refmean = mean(fixedpos; dims=2)
+    movmean = mean(movpos; dims=2)
+    R = MIToS.PDB.kabsch((fixedpos .- refmean)', (movpos .- movmean)')
+    return change_coordinates(moving, (coordinatesmatrix(moving) .- movmean') * R .+ refmean')
+end
+align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; kwargs...) =
+    align(residue_centroid_matrix(fixed), moving, sm; kwargs...)
+
+function mapclosest(mapto::AbstractVector{PDBResidue}, mapfrom::AbstractVector{PDBResidue})
+    refcenters = residue_centroid_matrix(mapto)
+    seqcenters = residue_centroid_matrix(mapfrom)
+    D = pairwise(Euclidean(), refcenters, seqcenters; dims=2)
+    assignment, _ = hungarian(D)
+    return collect(zip(assignment, [j == 0 ? convert(eltype(D), NaN) : D[i, j] for (i, j) in enumerate(assignment)]))
+    # d, m = findmin(D; dims=1)
+    # return [mi[1] => di for (mi, di) in zip(vec(m), vec(d))]
+end
+
+## Align to membrane
+
 """
     newchain = align_to_membrane(chain::AbstractVector{PDBResidue}, tms; extracellular=true)
 
@@ -80,4 +118,105 @@ function collect_leaflet_residues(chain, tms, extracellular)
         extracellular = !extracellular
     end
     return leaflet_e, leaflet_i
+end
+
+## One-sided Needleman-Wunsch alignment
+
+@enum NWParent NONE DIAG LEFT
+Base.show(io::IO, p::NWParent) = print(io, p == NONE ? 'X' :
+                                           p == DIAG ? '↖' :
+                                           p == LEFT ? '←' : '?')
+Base.show(io::IO, ::MIME"text/plain", p::NWParent) = show(io, p)
+
+"""
+    ϕ = align_nw(D)
+
+Given a penalty matrix `D` (e.g., a pairwise distance matrix), find
+the optimal `ϕ` that minimizes the sum of `D[i, ϕ[i]]` for all `i`, subject
+to the constraint that `ϕ[i+1] > ϕ[i]`. No gaps in `i` are allowed.
+We require `size(D, 1) <= size(D, 2)`.
+"""
+function align_nw(D::AbstractMatrix)
+    m, n = size(D)
+    S, P = score_nw(D)
+    # Trace the path
+    ϕ = Vector{Int}(undef, m)
+    i, j = m, n
+    while i > 0
+        P[i,j] == DIAG && (ϕ[i] = j; i -= 1; j -= 1)
+        P[i,j] == LEFT && (j -= 1)
+        P[i,j] == NONE && break
+    end
+    return ϕ
+end
+
+"""
+    ϕ = align_nw(refseq, srcseq; mode=:distance)
+
+Find the optimal `ϕ` matching `refseq[i]` to `srcseq[ϕ[i]]` for all `i`, subject
+to the constraint that `ϕ[i+1] > ϕ[i]`.
+"""
+function align_nw(refseq::AbstractVector{PDBResidue}, srcseq::AbstractVector{PDBResidue}; mode::Symbol=Symbol("distance+scvector"))
+    supported_modes = (:distance, Symbol("distance+scvector"))
+    mode ∈ supported_modes || throw(ArgumentError("supported modes are $(supported_modes), got $mode"))
+
+    refcenters = residue_centroid_matrix(refseq)
+    srccenters = residue_centroid_matrix(srcseq)
+    D = pairwise(Euclidean(), refcenters, srccenters; dims=2)
+    if mode == Symbol("distance+scvector")
+        refsc = reduce(hcat, [scvector(r) for r in refseq])
+        srcsc = reduce(hcat, [scvector(r) for r in srcseq])
+        D = sqrt.(D.^2 + pairwise(SqEuclidean(), refsc, srcsc; dims=2))
+    end
+    return align_nw(D)
+end
+
+"""
+    seqtms = align_ranges(seq, ref, refranges::AbstractVector{<:AbstractUnitRange})
+
+Transfer `refranges`, a list of reside index spans in `ref`, to `seq`. `seq` and
+`ref` must be spatially aligned, and the assignment is made by minimizing
+inter-chain distance subject to the constraint of preserving sequence order.
+"""
+function align_ranges(seq::AbstractVector{PDBResidue}, ref::AbstractVector{PDBResidue}, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...)
+    anchoridxs = sizehint!(Int[], length(refranges)*2)
+    for r in refranges
+        push!(anchoridxs, first(r), last(r))
+    end
+    issorted(anchoridxs) || throw(ArgumentError("`refranges` must be strictly increasing spans, got $refranges"))
+    ϕ = align_nw(ref[anchoridxs], seq; kwargs...)
+    return [ϕ[i]:ϕ[i+1] for i in 1:2:length(ϕ)]
+end
+
+function score_nw(D::AbstractMatrix{T}) where T
+    Base.require_one_based_indexing(D)
+    m, n = size(D)
+    m <= n || throw(ArgumentError("First dimension cannot be longer than the second"))
+    S = OffsetMatrix{T}(undef, 0:m, 0:n)
+    P = OffsetMatrix{NWParent}(undef, 0:m, 0:n)
+    # Initialize the scoring. We need to use all rows of D while always incrementing the columns.
+    # Give maximum badness to paths that don't do this.
+    S[:,0] .= typemax(T); S[0,:] .= zero(T)
+    P[:,0] .= NONE; P[0,:] .= NONE
+    for i = 1:m
+        for j = 1:i-1
+            S[i,j], P[i,j] = typemax(T), NONE
+        end
+        for j = n-m+i+1:n
+            S[i,j], P[i,j] = typemax(T), NONE
+        end
+    end
+    # Compute the score of each possible path
+    for i = 1:m, j = i:n-m+i
+        d = D[i,j]
+        sd, sl = S[i-1,j-1], S[i, j-1]
+        if sd == typemax(T)
+            S[i,j], P[i,j] = sl, LEFT
+        else
+            diag = sd + d
+            left = sl
+            S[i,j], P[i,j] = diag < left ? (diag, DIAG) : (left, LEFT)
+        end
+    end
+    return S, P
 end

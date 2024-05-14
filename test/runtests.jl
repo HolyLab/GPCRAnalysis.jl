@@ -80,6 +80,33 @@ using Test
         @test !occursin("matchmaker #2-2 to #1", script)
         @test occursin("marker #2 position 5.0,4.0,3.0 radius 0.5 color blue", script)
     end
+    @testset "Needleman-Wunsch" begin
+        D = [0 1 2 3 4; 1 0 1 2 3; 2 1 0 1 2; 3 2 1 0 1]
+        S, P = GPCRAnalysis.score_nw(D .+ 7)
+        @test S[end, end] == 28
+        @test sprint(show, MIME("text/plain"), P[1:4, 1:5]) == """
+            4×5 Matrix{GPCRAnalysis.NWParent}:
+             ↖  ←  X  X  X
+             X  ↖  ←  X  X
+             X  X  ↖  ←  X
+             X  X  X  ↖  ←"""
+        ϕ = align_nw(D)
+        @test ϕ == [1, 2, 3, 4]
+        D = [0 1 2 3 4; 1 0 1 2 3; 2 1 0 1 2; 4 3 2 1 0]
+        ϕ = align_nw(D)
+        @test ϕ == [1, 2, 3, 5]
+        D = [0 1 2 3 4; 1 0 1 2 3; 3 2 1 0 1; 4 3 2 1 0]
+        ϕ = align_nw(D)
+        @test ϕ == [1, 2, 4, 5]
+        D = [1 0 1 2 3; 3 2 1 0 1; 4 3 2 1 0; 5 4 3 2 1]
+        ϕ = align_nw(D)
+        @test ϕ == [2, 3, 4, 5]
+        @test_throws "First dimension cannot be longer than the second" align_nw(rand(5, 4))
+
+        opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
+        @test align_ranges(opsd, opsd, opsd_tms) == opsd_tms
+    end
     @testset "Pocket residues and features" begin
         opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
         opsdr = [three2residue(r.id.name) for r in opsd]
