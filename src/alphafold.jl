@@ -31,7 +31,7 @@ end
 Return the latest version of all AlphaFold files in `dirname`.
 If `join` is `true`, then the full paths are returned.
 """
-function alphafoldfiles(dirname=pwd())
+function alphafoldfiles(dirname=pwd(); join::Bool=false)
     latest = Dict{String,Int}()
     for fn in readdir(dirname)
         m = match(rex_alphafold_pdbs, fn)
