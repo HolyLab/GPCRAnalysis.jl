@@ -83,7 +83,8 @@ using Test
     @testset "Pocket residues and features" begin
         opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
         opsdr = [three2residue(r.id.name) for r in opsd]
-        # These are not quite accurate, the actual answer is
+        # These are not quite accurate, from https://www.uniprot.org/uniprotkb/P15409/entry#subcellular_location
+        # the actual answer is
         #   opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
         # but these exercise useful parts of the code
         opsd_tms = [only(findall_subseq(res"PWQF", opsdr)):only(findall_subseq(res"VTVQ", opsdr))+3,

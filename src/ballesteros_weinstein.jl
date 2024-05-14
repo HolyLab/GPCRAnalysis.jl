@@ -1,13 +1,6 @@
 struct BWScheme
     conserved::NTuple{7,Int}
     tmspans::NTuple{7,UnitRange{Int}}
-
-    function BWScheme(conserved::NTuple{7,Integer}, tmspans::NTuple{7,AbstractUnitRange{<:Integer}})
-        for (i, rng) in zip(conserved, tmspans)
-            i ∈ rng || throw(ArgumentError("conserved residue $i not in transmembrane region $rng"))
-        end
-        return new(conserved, tmspans)
-    end
 end
 
 """
