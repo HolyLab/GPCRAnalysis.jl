@@ -30,7 +30,7 @@ function _entropy(v)
 end
 
 """
-    columnwise_entropy(msa::AbstractMultipleSequenceAlignment, aacode = ReducedAlphabet("(AILMV)(NQST)(RHK)(DE)(FWY)CGP")
+    columnwise_entropy(msa::AbstractMultipleSequenceAlignment, aacode = ReducedAlphabet("(AILMV)(NQST)(RHK)(DE)(FWY)CGP"))
 
 Compute the entropy of each column in an MSA. Low entropy indicates high conservation.
 

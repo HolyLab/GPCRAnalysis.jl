@@ -28,6 +28,18 @@ using Test
         @test uniprotX("Q8VGW6.37") == "Q8VGW6"
     end
 
+    @testset "NamingConvention" begin
+        for NC in (MSACode, AccessionCode)
+            @test NC("Q8VGW6") == NC("Q8VGW6")
+            @test NC("Q8VGW6") != NC("Q8VGW7")
+            @test NC["Q8VGW6"] isa Vector{NC}
+            # Disallow implicit conversion, since this loses information
+            @test_throws MethodError convert(String, NC("Q8VGW6"))
+            # Allow explicit type-casting
+            @test String(NC("Q8VGW6")) == "Q8VGW6"
+        end
+    end
+
     @testset "Ballesteros-Weinstein" begin
         opsd_scheme = BWScheme([55, 83, 135, 161, 215, 267, 303],
                                [34:64, 73:99, 107:139, 150:173, 200:229, 246:277, 285:309])

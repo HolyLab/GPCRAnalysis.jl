@@ -3,7 +3,7 @@ function itpos2coord(idxpos, tmitps)
 end
 
 function z2itpos(z, itpz::Interpolations.BSplineInterpolation{<:Any, <:Any, <:Any, <:BSpline{<:Linear}, <:Any})
-    zs = itpz.coefs 
+    zs = itpz.coefs
     zclamped = clamp(z, minimum(zs), maximum(zs))
     for i=2:length(zs)
         if (zs[i-1] <= zclamped <= zs[i]) || (zs[i] <= zclamped <= zs[i-1])
@@ -28,7 +28,7 @@ function scvector(r::PDBResidue)
     return sccoord === nothing ? [0.0,0.0,0.0] : sccoord - cacoord
 end
 
-function res_inside_hull(sccoord, tmcoords) # tmcoords is a list of 2D points in the z-plane of sccoord 
+function res_inside_hull(sccoord, tmcoords) # tmcoords is a list of 2D points in the z-plane of sccoord
     h = jarvismarch(tmcoords)
     return insidehull(sccoord[1:2], h)
 end
@@ -57,20 +57,20 @@ end
 function ecl_res_is_inward(r::PDBResidue, topcenter)
     scvec = scvector(r)
     all(iszero, scvec) && return false
-    accoord = alphacarbon_coordinates(r) 
+    accoord = alphacarbon_coordinates(r)
     return dot(topcenter .- accoord, scvec) > 0
 end
 
 
 """
-    inward_ecl_residues(seq, tmidxs)
+    inward_ecl_residues(seq, eclidxs)
 
 Return an array of boolean[] indicating which residues (of those specified by `eclidxs`) are inward-facing (i.e. downward toward the opening of the binding pocket).
 
 `eclidxs` is a vector (with each entry corresponding to an extracellular loop) of ranges of residue indices.
 """
-function inward_ecl_residues(seq, eclidxs)
-    tm_top_idxs = filter(x -> 0 < x < length(seq), vcat([[ecl[1] - 1, ecl[end] + 1] for ecl in eclidxs]...))    
+function inward_ecl_residues(seq, eclidxs; includes_amino_terminus::Bool=false)
+    tm_top_idxs = filter(x -> 0 < x < length(seq), vcat([[ecl[1] - 1, ecl[end] + 1] for ecl in eclidxs[begin+includes_amino_terminus:end]]...))
     topcenter = mean(alphacarbon_coordinates_matrix(seq[tm_top_idxs]); dims=2)
     return [[ecl_res_is_inward(r, topcenter) for r in seq[ecl]] for ecl in eclidxs]
 end
