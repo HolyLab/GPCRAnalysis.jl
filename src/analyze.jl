@@ -79,40 +79,6 @@ function alphacarbon_coordinates_matrix(seq)
 end
 
 """
-    align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
-    align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
-
-Return a rotated and shifted version of `moving` so that the α-carbons of residues `moving[sm]` have least
-mean square error deviation from positions `fixedpos` or those of residues `fixed`.
-"""
-function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; seqname=nothing)
-    length(sm) == size(fixedpos, 2) || throw(DimensionMismatch("reference has $(size(fixedpos, 2)) positions, but `sm` has $(length(sm))"))
-    movres = moving[sm]
-    keep = map(!isnothing, movres)
-    if !all(keep)
-        @warn "missing $(length(keep)-sum(keep)) anchors for sequence $seqname"
-    end
-    movpos = residue_centroid_matrix(movres[keep])
-    fixedpos = fixedpos[:,keep]
-    refmean = mean(fixedpos; dims=2)
-    movmean = mean(movpos; dims=2)
-    R = MIToS.PDB.kabsch((fixedpos .- refmean)', (movpos .- movmean)')
-    return change_coordinates(moving, (coordinatesmatrix(moving) .- movmean') * R .+ refmean')
-end
-align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; kwargs...) =
-    align(residue_centroid_matrix(fixed), moving, sm; kwargs...)
-
-function mapclosest(mapto::AbstractVector{PDBResidue}, mapfrom::AbstractVector{PDBResidue})
-    refcenters = residue_centroid_matrix(mapto)
-    seqcenters = residue_centroid_matrix(mapfrom)
-    D = pairwise(Euclidean(), refcenters, seqcenters; dims=2)
-    assignment, _ = hungarian(D)
-    return collect(zip(assignment, [j == 0 ? convert(eltype(D), NaN) : D[i, j] for (i, j) in enumerate(assignment)]))
-    # d, m = findmin(D; dims=1)
-    # return [mi[1] => di for (mi, di) in zip(vec(m), vec(d))]
-end
-
-"""
     chargelocations(pdb::AbstractVector{PDBResidue}; include_his::Bool=false)
 
 Return a list of potential charge locations in the protein structure. Each is a tuple `(position, residueindex, AAname)`.
