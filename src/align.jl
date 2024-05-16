@@ -120,103 +120,193 @@ function collect_leaflet_residues(chain, tms, extracellular)
     return leaflet_e, leaflet_i
 end
 
-## One-sided Needleman-Wunsch alignment
+## Needleman-Wunsch alignment
 
-@enum NWParent NONE DIAG LEFT
+@enum NWParent NONE DIAG LEFT UP
 Base.show(io::IO, p::NWParent) = print(io, p == NONE ? 'X' :
                                            p == DIAG ? '↖' :
-                                           p == LEFT ? '←' : '?')
+                                           p == LEFT ? '←' :
+                                           p == UP   ? '↑' : '?')
 Base.show(io::IO, ::MIME"text/plain", p::NWParent) = show(io, p)
 
-"""
-    ϕ = align_nw(D)
+struct NWGapCosts{T}
+    extend1::T
+    extend2::T
+    # Gap-opening costs
+    open1::T
+    open2::T
 
-Given a penalty matrix `D` (e.g., a pairwise distance matrix), find
-the optimal `ϕ` that minimizes the sum of `D[i, ϕ[i]]` for all `i`, subject
-to the constraint that `ϕ[i+1] > ϕ[i]`. No gaps in `i` are allowed.
-We require `size(D, 1) <= size(D, 2)`.
-"""
-function align_nw(D::AbstractMatrix)
-    m, n = size(D)
-    S, P = score_nw(D)
-    # Trace the path
-    ϕ = Vector{Int}(undef, m)
-    i, j = m, n
-    while i > 0
-        P[i,j] == DIAG && (ϕ[i] = j; i -= 1; j -= 1)
-        P[i,j] == LEFT && (j -= 1)
-        P[i,j] == NONE && break
+    function NWGapCosts{T}(extend1, extend2, open1, open2) where T
+        all(>=(zero(T)), (extend1, extend2, open1, open2)) || throw(ArgumentError("gap costs must be non-negative"))
+        return new{T}(extend1, extend2, open1, open2)
     end
-    return ϕ
 end
 
 """
-    ϕ = align_nw(refseq, srcseq; mode=:distance)
+    gapcosts = NWGapCosts{T}(; extend1=0, extend2=0, open1=0, open2=0)
 
-Find the optimal `ϕ` matching `refseq[i]` to `srcseq[ϕ[i]]` for all `i`, subject
-to the constraint that `ϕ[i+1] > ϕ[i]`.
+Create an affine cost for gaps in Needleman-Wunsch alignment. The cost of a gap of
+length `k` is
+
+    extend * k + open
+
+All costs must be nonnegative.
+
+`gapcosts(ϕ, idxs1, idxs2)` computes the contribution of gaps to the cost of
+alignment `ϕ` between two sequences with `idxs1 = eachindex(seq1)` and `idxs2 =
+eachindex(seq2)`. (The indices are needed to determine whether the alignment
+starts or ends with a gap.)
 """
-function align_nw(refseq::AbstractVector{PDBResidue}, srcseq::AbstractVector{PDBResidue}; mode::Symbol=Symbol("distance+scvector"))
-    supported_modes = (:distance, Symbol("distance+scvector"))
+NWGapCosts{T}(; extend1=0, extend2=0, open1=0, open2=0) where T =
+    NWGapCosts{T}(extend1, extend2, open1, open2)
+
+Base.eltype(::Type{<:NWGapCosts{T}}) where T = T
+Base.eltype(gapcosts::NWGapCosts) = eltype(typeof(gapcosts))
+
+function (gapcosts::NWGapCosts{T})(ϕ, idxs1, idxs2) where T
+    isempty(ϕ) && return saturating_add2(saturating_add2(gapcosts.ends1, gapcosts.ends2), length(idxs1)*gapcosts.extend1 + length(idxs2)*gapcosts.extend2)
+    cost = zero(T)
+    ϕprev = (0, 0)
+    for ϕk in vcat(ϕ, last.((idxs1, idxs2)))
+        dϕ = ϕk .- ϕprev
+        cost = saturating_add2(cost, saturating_add2((dϕ[1] > 1) * gapcosts.open2, max(dϕ[1]-1, 0) * gapcosts.extend2))
+        cost = saturating_add2(cost, saturating_add2((dϕ[2] > 1) * gapcosts.open1, max(dϕ[2]-1, 0) * gapcosts.extend1))
+        ϕprev = ϕk
+    end
+    return cost
+end
+
+"""
+    ϕ = align_nw(D, gapcosts::NWGapCosts)
+
+Given a pairwise penalty matrix `D` (e.g., a pairwise distance matrix) and costs
+for opening and extending gaps, find the optimal pairings
+
+    ϕ = [(i1, j1), (i2, j2), ...]
+
+that minimize
+
+    sum(D[ϕk...] for ϕk in ϕ) + gapcosts(ϕ, axes(D)...)
+
+subject to the constraint that `all(ϕ[k+1] .> ϕ[k])` for all `k`.
+"""
+function align_nw(D::AbstractMatrix, gapcosts::NWGapCosts)
+    S, P = score_nw(D, gapcosts)
+    S[end,end] == typemax(eltype(S)) && return nothing
+    return traceback_nw(P)
+end
+
+"""
+    ϕ = align_nw(seq1, seq2, gapcosts::NWGapCosts; mode=:distance_orientation)
+
+Find the optimal `ϕ` matching `seq1[ϕ[k][1]]` to `seq2[ϕ[k][2]]` for all
+`k`. `mode` controls the computation of pairwise matching penalties, and can be
+either `:distance` or `:distance_orientation`, where the latter adds any
+mismatch in sidechain orientation to the distance penalty.
+"""
+function align_nw(seq1::AbstractVector{PDBResidue}, seq2::AbstractVector{PDBResidue}, gapcosts::NWGapCosts;
+                  mode::Symbol=:distance_orientation)
+    supported_modes = (:distance, :distance_orientation)
     mode ∈ supported_modes || throw(ArgumentError("supported modes are $(supported_modes), got $mode"))
 
-    refcenters = residue_centroid_matrix(refseq)
-    srccenters = residue_centroid_matrix(srcseq)
+    refcenters = residue_centroid_matrix(seq1)
+    srccenters = residue_centroid_matrix(seq2)
     D = pairwise(Euclidean(), refcenters, srccenters; dims=2)
-    if mode == Symbol("distance+scvector")
-        refsc = reduce(hcat, [scvector(r) for r in refseq])
-        srcsc = reduce(hcat, [scvector(r) for r in srcseq])
+    if mode == :distance_orientation
+        refsc = reduce(hcat, [scvector(r) for r in seq1])
+        srcsc = reduce(hcat, [scvector(r) for r in seq2])
         D = sqrt.(D.^2 + pairwise(SqEuclidean(), refsc, srcsc; dims=2))
     end
-    return align_nw(D)
+    return align_nw(D, gapcosts)
 end
 
 """
-    seqtms = align_ranges(seq, ref, refranges::AbstractVector{<:AbstractUnitRange})
+    seqtms = align_ranges(seq1, seq2, seq2ranges::AbstractVector{<:AbstractUnitRange})
 
-Transfer `refranges`, a list of reside index spans in `ref`, to `seq`. `seq` and
-`ref` must be spatially aligned, and the assignment is made by minimizing
+Transfer `refranges`, a list of reside index spans in `seq2`, to `seq1`. `seq1` and
+`seq2` must be spatially aligned, and the assignment is made by minimizing
 inter-chain distance subject to the constraint of preserving sequence order.
 """
-function align_ranges(seq::AbstractVector{PDBResidue}, ref::AbstractVector{PDBResidue}, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...)
+function align_ranges(seq1::AbstractVector{PDBResidue}, seq2::AbstractVector{PDBResidue}, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...)
     anchoridxs = sizehint!(Int[], length(refranges)*2)
     for r in refranges
         push!(anchoridxs, first(r), last(r))
     end
     issorted(anchoridxs) || throw(ArgumentError("`refranges` must be strictly increasing spans, got $refranges"))
-    ϕ = align_nw(ref[anchoridxs], seq; kwargs...)
-    return [ϕ[i]:ϕ[i+1] for i in 1:2:length(ϕ)]
+    ϕ = align_nw(seq1, seq2[anchoridxs], NWGapCosts{Float64}(open1=Inf); kwargs...)
+    @assert last.(ϕ) == eachindex(anchoridxs)
+    return [ϕ[i][1]:ϕ[i+1][1] for i in 1:2:length(ϕ)]
 end
 
-function score_nw(D::AbstractMatrix{T}) where T
+function score_nw(D::AbstractMatrix, gapcosts::NWGapCosts)
     Base.require_one_based_indexing(D)
     m, n = size(D)
-    m <= n || throw(ArgumentError("First dimension cannot be longer than the second"))
-    S = OffsetMatrix{T}(undef, 0:m, 0:n)
-    P = OffsetMatrix{NWParent}(undef, 0:m, 0:n)
-    # Initialize the scoring. We need to use all rows of D while always incrementing the columns.
-    # Give maximum badness to paths that don't do this.
-    S[:,0] .= typemax(T); S[0,:] .= zero(T)
-    P[:,0] .= NONE; P[0,:] .= NONE
-    for i = 1:m
-        for j = 1:i-1
-            S[i,j], P[i,j] = typemax(T), NONE
-        end
-        for j = n-m+i+1:n
-            S[i,j], P[i,j] = typemax(T), NONE
-        end
+    T = typeof(zero(eltype(D)) + zero(eltype(gapcosts)))
+    S = OffsetMatrix{T}(undef, 0:m, 0:n)            # S[i, j] is the optimal score of align(seq1[1:i], seq2[1:j])
+    P = OffsetMatrix{NWParent}(undef, 0:m, 0:n)     # parent (predecessor of position i,j)
+    fill!(S, -1)
+    # Note: UP implies we're advancing sequence 1, and thus sequence 2 is in a gap
+    #       LEFT is the converse
+    # Initialize the scoring
+    S[0,0] = zero(T); P[0,0] = NONE
+    S[1,0] = saturating_add2(gapcosts.open2, gapcosts.extend2); P[1:m,0] .= UP
+    for i = 2:m
+        S[i,0] = saturating_add2(S[i-1,0], gapcosts.extend2)
     end
-    # Compute the score of each possible path
-    for i = 1:m, j = i:n-m+i
-        d = D[i,j]
-        sd, sl = S[i-1,j-1], S[i, j-1]
-        if sd == typemax(T)
-            S[i,j], P[i,j] = sl, LEFT
-        else
-            diag = sd + d
-            left = sl
-            S[i,j], P[i,j] = diag < left ? (diag, DIAG) : (left, LEFT)
+    S[0,1] = saturating_add2(gapcosts.open1, gapcosts.extend1); P[0,1:n] .= LEFT
+    for j = 2:n
+        S[0,j] = saturating_add2(S[0,j-1], gapcosts.extend1)
+    end
+    # Compute the score to each midpoint position
+    for i = 1:m, j = 1:n
+        left = saturating_add2(S[i, j-1], gapcosts.extend1)
+        if P[i, j-1] != LEFT
+            left = saturating_add2(left, gapcosts.open1)
         end
+        up = saturating_add2(S[i-1,j], gapcosts.extend2)
+        if P[i-1, j] != UP
+            up = saturating_add2(up, gapcosts.open2)
+        end
+        diag = saturating_add2(S[i-1,j-1], D[i, j])
+        minscore = min(diag, left, up)
+        P[i, j] = minscore == diag ? DIAG :
+                  minscore == left ? LEFT : UP
+        S[i, j] = minscore
     end
     return S, P
 end
+
+function traceback_nw(P; start=last(CartesianIndices(P)))
+    # Trace the path
+    ϕ = Tuple{Int,Int}[]
+    i, j = Tuple(start)
+    istop, jstop = first.(axes(P))
+    while i > istop && j > jstop
+        p = P[i, j]
+        if p == DIAG
+            push!(ϕ, (i, j))
+            i -= 1
+            j -= 1
+        elseif p == LEFT
+            j -= 1
+        elseif p == UP
+            i -= 1
+        else
+            break
+        end
+    end
+    return reverse!(ϕ)
+end
+
+# Saturating arithmetic to prevent overflow of Integer types
+# https://discourse.julialang.org/t/the-performance-of-saturating-operations-or-adding-intrinsics/48575
+# (thanks!)
+saturating_add2(x::T, y::T) where {T <: Unsigned} = x + min(~x, y)
+
+function saturating_add2(x::T, y::T) where {T <: Signed}
+	x + ifelse(x < zero(x), max(y, typemin(x) - x), min(y, typemax(x) - x))
+end
+
+saturating_add2(x::T, y::T) where {T <: AbstractFloat} = x + y
+
+saturating_add2(x::Real, y::Real) = saturating_add2(promote(x, y)...)
