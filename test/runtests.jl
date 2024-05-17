@@ -93,31 +93,57 @@ using Test
         @test occursin("marker #2 position 5.0,4.0,3.0 radius 0.5 color blue", script)
     end
     @testset "Needleman-Wunsch" begin
+        function testscore(S, P, D, gapcosts)
+            # This tests the premise of dynamic programming, that S[i, j] is the optimal score of align(seq1[1:i], seq2[1:j])
+            for i in axes(D, 1), j in axes(D, 2)
+                S′, P′ = GPCRAnalysis.score_nw(D[begin:i, begin:j], gapcosts)
+                @test S[i, j] == S′[end, end]
+                @test P[i, j] == P′[end, end]
+            end
+        end
+
+        # One-sided matching (must match every element of the first sequence)
         D = [0 1 2 3 4; 1 0 1 2 3; 2 1 0 1 2; 3 2 1 0 1]
-        S, P = GPCRAnalysis.score_nw(D .+ 7)
-        @test S[end, end] == 28
-        @test sprint(show, MIME("text/plain"), P[1:4, 1:5]) == """
-            4×5 Matrix{GPCRAnalysis.NWParent}:
-             ↖  ←  X  X  X
-             X  ↖  ←  X  X
-             X  X  ↖  ←  X
-             X  X  X  ↖  ←"""
-        ϕ = align_nw(D)
-        @test ϕ == [1, 2, 3, 4]
+        Dboost = D .+ 7 # offset to give something more stringent to test against
+        gapcosts = NWGapCosts{Int}(open2=typemax(Int))
+        S, P = GPCRAnalysis.score_nw(Dboost, gapcosts)
+        # check that disallowed paths are maximally penalized
+        for i = 1:4, j = 0:i-1
+            @test S[i, j] == typemax(Int)
+        end
+        @test match(r"4×5 Matrix{GPCRAnalysis.NWParent}:\n ↖  ←  ←  ←  ←\n .  ↖  ←  ←  ←\n .  .  ↖  ←  ←\n .  .  .  ↖  ←"m,
+                    sprint(show, MIME("text/plain"), P[1:4, 1:5])) !== nothing
+        for ϕ in (GPCRAnalysis.traceback_nw(P), align_nw(D, gapcosts))
+            @test ϕ == [(1, 1), (2, 2), (3, 3), (4, 4)]
+        end
+        ϕ = GPCRAnalysis.traceback_nw(P)
+        @test S[end, end] == 28 == sum(Dboost[ij...] for ij in ϕ) + gapcosts(ϕ, axes(D)...)
+        testscore(S, P, Dboost, gapcosts)
+
         D = [0 1 2 3 4; 1 0 1 2 3; 2 1 0 1 2; 4 3 2 1 0]
-        ϕ = align_nw(D)
-        @test ϕ == [1, 2, 3, 5]
+        @test align_nw(D, gapcosts) == [(1, 1), (2, 2), (3, 3), (4, 5)]
+        @test align_nw(D', gapcosts) === nothing   # no way to match all of seq1 if seq1 is longer than seq2
+        S, P = GPCRAnalysis.score_nw(D, gapcosts)
+        testscore(S, P, D, gapcosts)
         D = [0 1 2 3 4; 1 0 1 2 3; 3 2 1 0 1; 4 3 2 1 0]
-        ϕ = align_nw(D)
-        @test ϕ == [1, 2, 4, 5]
+        @test align_nw(D, gapcosts) == [(1, 1), (2, 2), (3, 4), (4, 5)]
         D = [1 0 1 2 3; 3 2 1 0 1; 4 3 2 1 0; 5 4 3 2 1]
-        ϕ = align_nw(D)
-        @test ϕ == [2, 3, 4, 5]
-        @test_throws "First dimension cannot be longer than the second" align_nw(rand(5, 4))
+        @test align_nw(D, gapcosts) == [(1, 2), (2, 3), (3, 4), (4, 5)]
 
         opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
         opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
         @test align_ranges(opsd, opsd, opsd_tms) == opsd_tms
+
+        # Symmetric matching
+        D = [1 2 7 4 5;
+             2 1 6 3 4;
+             3 2 5 2 3;]
+        gapcosts = NWGapCosts{Int}(extend1=1, extend2=1, open1=3, open2=3)
+        S, P = GPCRAnalysis.score_nw(D, gapcosts)
+        ϕ = GPCRAnalysis.traceback_nw(P)
+        @test ϕ == [(1, 1), (2, 2), (3, 5)]
+        @test S[end, end] == sum(D[ij...] for ij in ϕ) + gapcosts(ϕ, axes(D)...)
+        testscore(S, P, D, gapcosts)
     end
     @testset "Pocket residues and features" begin
         opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)

@@ -25,7 +25,7 @@ end
 function scvector(r::PDBResidue)
     cacoord = alphacarbon_coordinates(r)
     sccoord = sidechaincentroid(r)
-    return sccoord === nothing ? [0.0,0.0,0.0] : sccoord - cacoord
+    return sccoord === nothing ? zero(cacoord) : sccoord - cacoord
 end
 
 function res_inside_hull(sccoord, tmcoords) # tmcoords is a list of 2D points in the z-plane of sccoord

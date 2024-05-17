@@ -30,7 +30,7 @@ using GZip
 
 export @res_str
 
-export SequenceMapping, AccessionCode, MSACode
+export SequenceMapping, AccessionCode, MSACode, NWGapCosts
 export species, uniprotX, query_uniprot_accession
 export try_download_alphafold, query_alphafold_latest, download_alphafolds, alphafoldfile, alphafoldfiles, getchain, findall_subseq
 export align_to_axes, align_to_membrane, align_nw, align_ranges
