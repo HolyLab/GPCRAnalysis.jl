@@ -93,7 +93,7 @@ function query_uniprot_accession(id)
             uncompr_body = GZip.open(tmppath) do iogz
                 read(iogz, String)
             end
-            j = JSON.parse(uncompr_body)
+            j = JSON3.read(uncompr_body)
             return j["results"][1]["primaryAccession"]
         end
     end
