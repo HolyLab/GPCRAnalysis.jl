@@ -25,13 +25,13 @@ using GaussianMixtureAlignment
 
 # For querying the Uniprot and Alphafold REST APIs
 using HTTP
-using JSON
+using JSON3
 using GZip
 
 export @res_str
 
 export SequenceMapping, AccessionCode, MSACode, NWGapCosts
-export species, uniprotX, query_uniprot_accession
+export species, uniprotX, query_uniprot_accession, query_ebi_proteins, query_ncbi
 export try_download_alphafold, query_alphafold_latest, download_alphafolds, alphafoldfile, alphafoldfiles, getchain, findall_subseq
 export align_to_axes, align_to_membrane, align_nw, align_ranges
 export filter_species!, filter_long!, sortperm_msa, chimerax_script

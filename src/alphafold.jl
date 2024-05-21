@@ -77,7 +77,7 @@ Query the [AlphaFold](https://alphafold.com/) API for the latest structure of `u
 function query_alphafold_latest(uniprotXname)
     resp = HTTP.get("https://alphafold.com/api/prediction/$uniprotXname")
     if resp.status == 200
-        j = JSON.parse(String(resp.body))[1]
+        j = JSON3.read(String(resp.body))[1]
         return j["pdbUrl"]
     end
     return nothing

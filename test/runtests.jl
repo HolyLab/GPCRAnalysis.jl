@@ -221,6 +221,27 @@ using Test
             @test query_uniprot_accession("T2R38_MOUSE") == "Q7TQA6"
         end
 
+        @testset "EBI and NCBI" begin
+            result = only(query_ebi_proteins("Q7TQA6"))
+            obj = nothing
+            for x in result["dbReferences"]
+                if x["type"] == "Proteomes"
+                    obj = x
+                    break
+                end
+            end
+            m = match(r"Chromosome\s(\d+)", obj["properties"]["component"])
+            @test parse(Int, m.captures[1]) == 6
+            for x in result["dbReferences"]
+                if x["type"] == "RefSeq"
+                    obj = x["id"]
+                    break
+                end
+            end
+            q = query_ncbi(obj)
+            @test q["total_count"] == 1
+        end
+
         @testset "AlphaFold" begin
             @test try_download_alphafold("garbage") === nothing
             uname = "K7N608"
