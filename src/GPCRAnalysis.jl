@@ -54,5 +54,6 @@ include("properties.jl")
 include("chimerax.jl")
 include("pocket.jl")
 include("features.jl")
+include("deprecated.jl")
 
 end

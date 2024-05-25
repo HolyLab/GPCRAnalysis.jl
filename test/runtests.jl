@@ -86,11 +86,12 @@ using Test
         @test occursin("show #2 :11", script)
         @test occursin("transparency #1-2 80 target c", script)
         @test occursin("matchmaker #2-2 to #1", script)
-        dots = GPCRAnalysis.markers(2, [Coordinates(5, 4, 3)], 0.5, "blue")
-        chimerax_script(tmpfile, ["align_ABCD.pdb", "align_EFGH.pdb"], [[5, 10, 15], [7, 11]]; extras=dots)
+        dot = GPCRAnalysis.marker(2, Coordinates(5, 4, 3), 0.5, "blue")
+        chimerax_script(tmpfile, ["ABCD.pdb", "EFGH.pdb"], [[5, 10, 15], [7, 11]]; align=false, extras=[dot])
         script = read(tmpfile, String)
         @test !occursin("matchmaker #2-2 to #1", script)
         @test occursin("marker #2 position 5.0,4.0,3.0 radius 0.5 color blue", script)
+        rm(tmpfile)
     end
     @testset "Needleman-Wunsch" begin
         function testscore(S, P, D, gapcosts)
@@ -348,3 +349,5 @@ using Test
         end
     end
 end
+
+include("deprecated.jl")
