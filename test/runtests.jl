@@ -4,6 +4,7 @@ using MIToS.MSA
 using MIToS.PDB
 using InvertedIndices
 using Statistics
+using LinearAlgebra
 using Test
 
 # skip the network-hitting components by setting `skip_download = true` in the global namespace
