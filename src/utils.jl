@@ -78,3 +78,5 @@ function findall_subseq(subseq, seq)
     return starts
 end
 
+alpha_nitrogen(r) = r.atoms[findfirst(a -> a.atom == "N", r.atoms)]
+alpha_carbon(r) = r.atoms[findfirst(a -> a.atom == "CA", r.atoms)]

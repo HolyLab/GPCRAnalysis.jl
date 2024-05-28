@@ -1,7 +1,7 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
-version = "0.3.1"
+version = "0.4.0"
 
 [deps]
 CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
@@ -29,7 +29,7 @@ CoordinateTransformations = "0.6"
 Distances = "0.10"
 Downloads = "1"
 GZip = "0.6"
-GaussianMixtureAlignment = "0.1.9"
+GaussianMixtureAlignment = "0.1.10"
 HTTP = "1"
 Hungarian = "0.6, 0.7"
 Interpolations = "0.15"
