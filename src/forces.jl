@@ -88,7 +88,6 @@ function forcecomponents(mgmms::AbstractVector{<:IsotropicMultiGMM{N}}, interact
                    key1 === key2 ? [(key1, key2) => coef] :
                    [(key1, key2) => coef, (key2, key1) => coef]
         for (key, c) in pairlist
-            @show key c
             for (ii, i) in enumerate(residueindexes)
                 mgmmi = mgmms[i]
                 gmmx = get(mgmmi.gmms, key[1], nothing)
@@ -128,8 +127,7 @@ tuned via different principles.
 
     This function requires that you manually load JuMP and HiGHS, e.g., `using JuMP, HiGHS`.
 """
-function optimize_weights end
-# optimize_weights(forces::AbstractVector{<:AbstractMatrix}) = optimize_weights(sum(f' * f for f in forces))
+optimize_weights(forces::AbstractVector{<:AbstractMatrix}) = optimize_weights(sum(f' * f for f in forces))
 
 """
     interactiondict = forcedict(w, interactions::AbstractVector)
