@@ -1,6 +1,10 @@
 const σdflt = (; hbond=1, ionic=5, aromatic=3)  # rough guesses for the interaction distance, in Å (separation is 2σ)
 
-function default_σfun(a, r, f::Symbol; σhbond=σdflt.hbond, σionic=σdflt.ionic, σaromatic=σdflt.aromatic)
+equalvolumeradius(radii) = sum(radii.^3)^(1/3)
+equalvolumeradius(atoms::AbstractVector{PDBAtom}, r::PDBResidue) = equalvolumeradius([vanderwaalsradius[(r.id.name, a.atom)] for a in atoms])
+equalvolumeradius(atoms::AbstractVector{PDBAtom}, r::PDBResidue, ::Symbol) = equalvolumeradius(atoms, r)
+
+function atomic_σfun(a, r, f::Symbol; σhbond=σdflt.hbond, σionic=σdflt.ionic, σaromatic=σdflt.aromatic)
     f === :Steric && return vanderwaalsradius[(r.id.name, a.atom)]             # repulsive
     f === :Hydrophobe && return 2 * vanderwaalsradius[(r.id.name, a.atom)]     # attractive
     f ∈ (:Donor, :Acceptor) && return sqrt(σhbond^2 + vanderwaalsradius[(r.id.name, a.atom)]^2)
@@ -9,11 +13,7 @@ function default_σfun(a, r, f::Symbol; σhbond=σdflt.hbond, σionic=σdflt.ion
     throw(ArgumentError("Unknown feature type: $f"))
 end
 
-equalvolumeradius(radii) = sum(radii.^3)^(1/3)
-equalvolumeradius(atoms::AbstractVector{PDBAtom}, r::PDBResidue) = equalvolumeradius([vanderwaalsradius[(r.id.name, a.atom)] for a in atoms])
-equalvolumeradius(atoms::AbstractVector{PDBAtom}, r::PDBResidue, ::Symbol) = equalvolumeradius(atoms, r)
-
-function combinedfeaturesize(atoms, r, f::Symbol; σhbond=σdflt.hbond, σionic=σdflt.ionic, σaromatic=σdflt.aromatic)
+function combined_σfun(atoms, r, f::Symbol; σhbond=σdflt.hbond, σionic=σdflt.ionic, σaromatic=σdflt.aromatic)
     μ = mean(a -> a.coordinates, atoms)
     length(atoms) == 1 && return equalvolumeradius(atoms, r)
     σ = std([norm(a.coordinates .- μ) for a in atoms]) + equalvolumeradius(atoms, r)
@@ -25,7 +25,7 @@ function combinedfeaturesize(atoms, r, f::Symbol; σhbond=σdflt.hbond, σionic=
     throw(ArgumentError("Unknown feature type: $f"))
 end
 
-function default_ϕfun(a, r, f::Symbol)
+function atomic_ϕfun(a, r, f::Symbol)
     name = r.id.name
     if f === :PosIonizable
         name == "HIS" && return 0.1
@@ -38,7 +38,7 @@ function default_ϕfun(a, r, f::Symbol)
     return 1.0
 end
 
-function combinedamplitude(atoms, r, f::Symbol)
+function combined_ϕfun(atoms, r, f::Symbol)
     name = r.id.name
     if f === :PosIonizable
         name == "HIS" && return 0.1
@@ -103,36 +103,46 @@ function add_features_from_residue!(
     mgmm::IsotropicMultiGMM,
     r::PDBResidue;
     combined = false,
-    σfun = combined ? combinedfeaturesize : default_σfun,
-    ϕfun = combined ? combinedamplitude : default_ϕfun,
-    weights = Dict(:Steric => 1, :Hydrophobe => 1, :Ionic => 1, :Hbond => 1, :Aromatic => 1)
+    σfun = combined ? combined_σfun : atomic_σfun,
+    ϕfun = combined ? combined_ϕfun : atomic_ϕfun
 )
-    lookup = Dict(:PosIonizable => :Ionic, :NegIonizable => :Ionic, :Donor => :Hbond, :Acceptor => :Hbond)
-    weightedϕfun(a, r, f) = ϕfun(a, r, f) * sqrt(weights[get(lookup, f, f)])   # sqrt because ϕ is squared in the overlap calculation
     if !combined
         for a in r.atoms
-            add_features_from_atom!(mgmm, a, r, σfun, weightedϕfun)
+            add_features_from_atom!(mgmm, a, r, σfun, ϕfun)
         end
     else
-        !iszero(weights[:Steric])     && add_features_from_atoms!(mgmm, :Steric,       r.atoms, r, σfun, weightedϕfun)
-        !iszero(weights[:Hydrophobe]) && add_features_from_atoms!(mgmm, :Hydrophobe,   filter(x -> ishydrophobic(x, r.id.name),   r.atoms), r, σfun, weightedϕfun)
-        !iszero(weights[:Aromatic])   && add_features_from_atoms!(mgmm, :Aromatic,     filter(x -> isaromatic(x, r.id.name),      r.atoms), r, σfun, weightedϕfun)
-        !iszero(weights[:Ionic])      && add_features_from_atoms!(mgmm, :PosIonizable, filter(x -> iscationic(x, r.id.name),      r.atoms), r, σfun, weightedϕfun)
-        !iszero(weights[:Ionic])      && add_features_from_atoms!(mgmm, :NegIonizable, filter(x -> isanionic(x, r.id.name),       r.atoms), r, σfun, weightedϕfun)
-        !iszero(weights[:Hbond])      && add_features_from_atoms!(mgmm, :Donor,        filter(x -> ishbonddonor(x, r.id.name),    r.atoms), r, σfun, weightedϕfun)
-        !iszero(weights[:Hbond])      && add_features_from_atoms!(mgmm, :Acceptor,     filter(x -> ishbondacceptor(x, r.id.name), r.atoms), r, σfun, weightedϕfun)
+        add_features_from_atoms!(mgmm, :Steric,       r.atoms, r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Hydrophobe,   filter(x -> ishydrophobic(x, r.id.name),   r.atoms), r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Aromatic,     filter(x -> isaromatic(x, r.id.name),      r.atoms), r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :PosIonizable, filter(x -> iscationic(x, r.id.name),      r.atoms), r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :NegIonizable, filter(x -> isanionic(x, r.id.name),       r.atoms), r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Donor,        filter(x -> ishbonddonor(x, r.id.name),    r.atoms), r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Acceptor,     filter(x -> ishbondacceptor(x, r.id.name), r.atoms), r, σfun, ϕfun)
     end
 end
 
 """
-    features_from_structure(seq, idxs=1:length(seq); combined=false)
+    mgmm = features_from_structure(seq, idxs=1:length(seq); combined=false)
 
-Construct an `IsotropicMultiGMM` from a `PDBResidue` sequence `seq` by adding features for each residue in `idxs`.
+Construct an `IsotropicMultiGMM` from a `PDBResidue` sequence `seq` by adding
+features for each residue in `idxs`.
 
-The `combined` keyword argument allows for the combination of atoms within a residue into a single feature, reducing the total number of features in the resulting model.
+`combined=true` causes all atoms sharing the same feature to be combined,
+reducing the total number of features in the resulting model. The default
+creates features for each atom separately.
 
-The `σfun` and `ϕfun` keyword arguments are functions that determine the standard deviation and amplitude of each gaussian feature, respectively.
-Depending on the value of `combined`, these functions take either a single `PDBAtom` or a vector of `PDBAtom` as the first argument, and a `PDBResidue` as the second argument.
+The `σfun` and `ϕfun` keyword arguments are functions that determine the
+standard deviation and amplitude of each gaussian feature, respectively,
+and take arguments `(atom, residue, feature)`.
+
+The output `mgmm` may include the following features:
+- `:Steric` (the "hard center", a proxy for the repulsive core of Lennard-Jones potentials)
+- `:Hydrophobe` (van der Waals interactions, a proxy for the attractive part of Lennard-Jones potentials)
+- `:Aromatic` (the aromatic ring of phenylalanine, tyrosine, and tryptophan)
+- `:PosIonizable` (the positively charged nitrogen of histidine, arginine, and lysine; histidine gets a fractional charge of +0.1)
+- `:NegIonizable` (the negatively charged oxygen of aspartate and glutamate; each oxygen gets a fractional charge of -0.5)
+- `:Donor` (the hydrogen of a hydrogen bond donor)
+- `:Acceptor` (the oxygen of a hydrogen bond acceptor)
 """
 function features_from_structure(seq, idxs=1:length(seq); kwargs...)
     mgmm = IsotropicMultiGMM(Dict{Symbol,IsotropicGMM{3,Float64}}())

@@ -2,9 +2,11 @@ using GPCRAnalysis
 using MIToS
 using MIToS.MSA
 using MIToS.PDB
+using GaussianMixtureAlignment
 using InvertedIndices
 using Statistics
 using LinearAlgebra
+using JuMP, SCS
 using Test
 
 # skip the network-hitting components by setting `skip_download = true` in the global namespace
@@ -216,29 +218,73 @@ using Test
                 @test g1.ϕ >= g2.ϕ
             end
         end
+    end
 
-        keep = falses(length(opsd))
-        keep[tm_idxs] .= true
-        # These weights were obtained via tuning on K7N608
-        wdicts = Dict(false => Dict(:Steric => 0.0995068, :Hydrophobe => 0.132363,  :Ionic => 3.35246, :Hbond => 0.838115, :Aromatic => 0.0),
-                      true  => Dict(:Steric => 0.0295224, :Hydrophobe => 0.0552366, :Ionic => 3.38103, :Hbond => 0.845257, :Aromatic => 0.0))
+    @testset "Forces" begin
+        interactions = [(:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1]
+        mgmmx = IsotropicMultiGMM(Dict(:Steric     => IsotropicGMM([IsotropicGaussian([0.0, 0.0], 1.0, 1.0)]),
+                                       :Hydrophobe => IsotropicGMM([IsotropicGaussian([0.0, 0.0], 2.0, 1.0)])))
+        mgmmy = IsotropicMultiGMM(Dict(:Steric     => IsotropicGMM([IsotropicGaussian([1.0, 1.0], 1.0, 1.0)]),
+                                       :Hydrophobe => IsotropicGMM([IsotropicGaussian([1.0, 1.0], 2.0, 1.0)])))
+        forces = forcecomponents([mgmmx, mgmmy], interactions)
+        @test length(forces) == 2
+        @test iszero(forces[1] + forces[2])
+        @test all(f -> norm(sum(f; dims=2)) > 0.1, forces)   # non-zero force
+        w = optimize_weights(forces)
+        @test all(>=(0), w)
+        @test sum(w) ≈ 1 atol=1e-6
+        weighted_interactions = [key => w0*wi for ((key, w0), wi) in zip(interactions, w)]
+        wforces = forcecomponents([mgmmx, mgmmy], weighted_interactions)
+        @test all(f .* w' ≈ wf for (f, wf) in zip(forces, wforces))
+        @test all(f -> norm(sum(f; dims=2)) < 1e-4, wforces)   # net-zero force
+        wnew = optimize_weights(wforces)
+        @test wnew[1] ≈ 0.5 atol=1e-4
+        @test wnew[2] ≈ 0.5 atol=1e-4
+
+        #
+        #      Y
+        #          W   X
+        #      Z
+        #
+        #where WX is hydrophobic, WY is H-bond, and WZ is ionic (all attractive)
+        interactions = [(:Hydrophobe, :Hydrophobe) => -1, (:Donor, :Acceptor) => -1, (:Ionic, :Ionic) => 1]
+        mgmmw = IsotropicMultiGMM(Dict(:Hydrophobe   => IsotropicGMM([IsotropicGaussian([ 0.0, 0.0], 2.0, 1.0)]),
+                                       :Donor        => IsotropicGMM([IsotropicGaussian([ 0.0, 0.0], 1.5, 1.0)]),
+                                       :PosIonizable => IsotropicGMM([IsotropicGaussian([ 0.0, 0.0], 4.0, 1.0)])))
+        mgmmx = IsotropicMultiGMM(Dict(:Hydrophobe   => IsotropicGMM([IsotropicGaussian([ 1.0, 0.0], 2.0, 1.0)])))
+        mgmmy = IsotropicMultiGMM(Dict(:Acceptor     => IsotropicGMM([IsotropicGaussian([-1.0, 1.0], 1.5, 1.0)])))
+        mgmmz = IsotropicMultiGMM(Dict(:NegIonizable => IsotropicGMM([IsotropicGaussian([-1.0,-1.0], 4.0, 1.0)])))
+        forces = forcecomponents([mgmmw, mgmmx, mgmmy, mgmmz], interactions, [1])
+        @test length(forces) == 1
+        @test all(f -> norm(sum(f; dims=2)) > 0.1, forces)   # non-zero force
+        f = only(forces)
+        # Test that each force is in the expected direction
+        @test f[:, 1] ≈ ([ 1, 0] \ f[:, 1]) * [ 1, 0]
+        @test f[:, 2] ≈ ([-1, 1] \ f[:, 2]) * [-1, 1]
+        @test f[:, 3] ≈ ([-1,-1] \ f[:, 3]) * [-1,-1]
+        w = optimize_weights(forces)
+        @test all(>=(0), w)
+        @test sum(w) ≈ 1
+        weighted_interactions = [key => w0*wi for ((key, w0), wi) in zip(interactions, w)]
+        wforces = forcecomponents([mgmmw, mgmmx, mgmmy, mgmmz], weighted_interactions, [1])
+        @test all(f .* w' ≈ wf for (f, wf) in zip(forces, wforces))
+        @test all(f -> norm(sum(f; dims=2)) < 1e-6, wforces)   # net-zero force
+
+        interactions = [(:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1, (:Donor, :Acceptor) => -1]  # drop the ionic
+        opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
+        tm_res = inward_tm_residues(opsd, opsd_tms)
+        tm_idxs = reduce(vcat, [tm[idx] for (tm, idx) in zip(opsd_tms, tm_res)])
         for combined in (false, true)
-            forces = forcecomponents(opsd, keep; combined)
-            forces3 = [f[:, [1, 2, 4]] for f in forces]
-            F = sum(f'*f for f in forces3)
-            w = 1 ./ sqrt.(diag(F))
-            # Test that weighted interactions need no additional weighting
-            wforces = forcecomponents(opsd, keep; combined, weights=GPCRAnalysis.force_vector2dict(w))
-            wforces3 = [f[:, [1, 2, 4]] for f in wforces]
-            wF = sum(f'*f for f in wforces3)
-            @test all(≈(1), diag(wF))
-            # Tuned weights
-            forces = forcecomponents(opsd, keep; combined, weights=wdicts[combined])
-            forces3 = [f[:, [1, 2, 4]] for f in forces]
-            F = sum(f'*f for f in forces3)
-            # Test that the force contributions are commensurate with what we know from the literature
-            @test 0.1 < F[1, 1] / F[2, 2] < 10
-            @test 1 < F[3, 3] / F[2, 2] < 30
+            forces = forcecomponents(opsd, interactions, tm_idxs; combined)
+            w = optimize_weights(forces)
+            # Exact force balance is presumably impossible to achieve in this case.
+            # For a weaker test, check that weighted interactions need no additional weighting.
+            weighted_interactions = [key => w0*wi for ((key, w0), wi) in zip(interactions, w)]
+            wforces = forcecomponents(opsd, weighted_interactions, tm_idxs; combined)
+            @test all(f .* w' ≈ wf for (f, wf) in zip(forces, wforces))
+            wnew = optimize_weights(wforces)
+            @test all(≈(1/length(interactions)), wnew)
         end
     end
 
