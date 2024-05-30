@@ -285,7 +285,7 @@ using Test
                 msacode2structfile = alphafoldfiles(msa, path)
                 afnbyidx(i) = getchain(joinpath(path, msacode2structfile[MSACode(sequencenames(msa)[i])]))
 
-                c1, c2 = getchain(afnbyidx(1)), getchain(afnbyidx(5))
+                c1, c2 = afnbyidx(1), afnbyidx(5)
                 conserved_residues = c1[SequenceMapping(getsequencemapping(msa, 1))[conserved_cols]]
                 badidx = findall(==(nothing), conserved_residues)
                 conserved_residues = convert(Vector{PDBResidue}, conserved_residues[Not(badidx)])
@@ -305,7 +305,7 @@ using Test
                 # Choose a sufficiently-divergent pair that structural alignment is nontrivial
                 idxref = findfirst(str -> startswith(str, "K7N701"), sequencenames(msa))
                 idxcmp = findfirst(str -> startswith(str, "K7N778"), sequencenames(msa))
-                cref, ccmp = getchain(afnbyidx(idxref)), getchain(afnbyidx(idxcmp))
+                cref, ccmp = afnbyidx(idxref), afnbyidx(idxcmp)
                 sa = StructAlign(cref, ccmp, joinpath(@__DIR__, "tmalign.txt"))
                 @test !ismapped(sa, 1, nothing)
                 @test  ismapped(sa, 11, nothing)
@@ -335,11 +335,11 @@ using Test
                 @test length(setdiff(idxclose, sa.m2.a2s)) < 0.05 * length(idxclose)  # almost same as TMalign
 
                 chimerafile = tempname() * ".cxc"
-                chimerax_script(chimerafile, ["K7N775", "K7N731"], msa, [66, 69]; dir="somedir")
+                chimerax_script(chimerafile, ["K7N775", "K7N731"], msa, [66, 69]; dir=path)
                 script = read(chimerafile, String)
-                @test  occursin("open somedir/AF-K7N775", script)
-                @test  occursin("open somedir/AF-K7N731", script)
-                @test !occursin("open somedir/AF-K7N701", script)
+                @test  occursin("open $path/AF-K7N775", script)
+                @test  occursin("open $path/AF-K7N731", script)
+                @test !occursin("open $path/AF-K7N701", script)
                 @test occursin("show #1 :67", script)
                 @test occursin("show #1 :70", script)
                 @test occursin("show #2 :70", script)

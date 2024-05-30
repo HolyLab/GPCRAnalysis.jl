@@ -11,7 +11,7 @@ alphafoldfilename(uniprotXname; version=4) = "AF-$uniprotXname-F1-model_v$versio
 Return the latest version of the AlphaFold file for `uniprotXname` in `dirname`.
 If `join` is `true`, then the full path is returned.
 """
-function alphafoldfile(uniprotXname, dirname=pwd(); join::Bool=false)
+function alphafoldfile(uniprotXname::AbstractString, dirname=pwd(); join::Bool=false)
     rex = regex_alphafold_pdb(uniprotXname)
     lv = 0
     for fn in readdir(dirname)
@@ -52,7 +52,7 @@ end
 
 Return a dictionary mapping `MSACode`s to the corresponding AlphaFold structure files.
 """
-function alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd())
+function alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd(); join::Bool=false)
     afs = alphafoldfiles(dirname)
     accesscode2idx = Dict{AccessionCode,Int}()
     for (i, af) in pairs(afs)
@@ -63,7 +63,8 @@ function alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd())
     for name in sequencenames(msa)
         ac = AccessionCode(msa, name)
         if haskey(accesscode2idx, ac)
-            msacode2structfile[MSACode(name)] = afs[accesscode2idx[ac]]
+            fn = afs[accesscode2idx[ac]]
+            msacode2structfile[MSACode(name)] = join ? joinpath(dirname, fn) : fn
         end
     end
     return msacode2structfile
