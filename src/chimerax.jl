@@ -22,7 +22,7 @@ function chimerax_script(scriptfilename, struct_filenames, ridxs::AbstractVector
             end
         end
         if isa(extras, AbstractString)
-            println(io, extras) 
+            println(io, extras)
         else
             for ex in extras
                 println(io, ex)
@@ -68,12 +68,12 @@ function chimerax_script(scriptfilename, uprot_list, msa::AnnotatedMultipleSeque
     ridxs = [Int[] for _ in 1:length(uprot_list)]
     struct_filenames = Vector{String}(undef, length(uprot_list))
     rcstyles = Dict{Tuple{Int,Int},String}()
-    afs = alphafoldfile(msa, dir; join=true)
+    afs = alphafoldfiles(msa, dir; join=true)
     uprot2msaidx = Dict{AccessionCode,Int}(AccessionCode(msa, name) => i for (i, name) in enumerate(sequencenames(msa)))
     for (i, p) in enumerate(uprot_list)
         j = uprot2msaidx[AccessionCode(p)]
-        struct_filenames[i] = afs[MSACode(sequencenames(msa, j))]
-        sm = getsequencemapping(msa, seqidx)
+        struct_filenames[i] = afs[MSACode(sequencenames(msa)[j])]
+        sm = getsequencemapping(msa, j)
         for (j, c) in enumerate(colidxs)
             ridx = sm[c]
             if iszero(ridx)
