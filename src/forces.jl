@@ -130,11 +130,11 @@ tuned via different principles.
 optimize_weights(forces::AbstractVector{<:AbstractMatrix}) = optimize_weights(sum(f' * f for f in forces))
 
 """
-    interactiondict = forcedict(w, interactions::AbstractVector)
+    interactiondict = forcedict(interactions::AbstractVector, w = ones(length(interactions)))
 
 Create a dictionary of interactions, where `interactions[i]` should be weighted by `w[i]`.
 """
-function forcedict(w::AbstractVector, interactions::InteractionList{K}) where K
+function forcedict(interactions::InteractionList{K}, w::AbstractVector=fill(true, eachindex(interactions))) where K
     eachindex(w) == eachindex(interactions) || throw(ArgumentError("w and interactions must have the same length"))
     # Assume `w` came from tuning the forces and is matched to `interactions`, so it shouldn't need validating
     d = Dict{Tuple{K,K},Float64}()
@@ -150,4 +150,5 @@ function forcedict(w::AbstractVector, interactions::InteractionList{K}) where K
             d[key1, key2] = c * wi
         end
     end
+    return d
 end
