@@ -2,8 +2,11 @@ using GPCRAnalysis
 using MIToS
 using MIToS.MSA
 using MIToS.PDB
+using GaussianMixtureAlignment
 using InvertedIndices
 using Statistics
+using LinearAlgebra
+using JuMP, HiGHS
 using Test
 
 # skip the network-hitting components by setting `skip_download = true` in the global namespace
@@ -193,7 +196,7 @@ using Test
         tm_idxs = vcat([opsd_tms[[2,3,5,6,7]][i][tm_res[i]] for i=1:5]...)
         tm_mgmm = features_from_structure(opsd, tm_idxs)
         tm_mgmm_combined = features_from_structure(opsd, tm_idxs; combined=true)
-        tm_mgmm_combined_2 = features_from_structure(opsd, tm_idxs; combined=true, σfun=GPCRAnalysis.equalvolumeradius, ϕfun=(a,r)->1.0)
+        tm_mgmm_combined_2 = features_from_structure(opsd, tm_idxs; combined=true, σfun=GPCRAnalysis.equalvolumeradius, ϕfun=(a,r,f)->1.0)
         @test sum(length, values(tm_mgmm.gmms)) > sum(length, values(tm_mgmm_combined.gmms))
         for key in keys(tm_mgmm.gmms)
             for (g1, g2) in zip(tm_mgmm_combined.gmms[key].gaussians, tm_mgmm_combined_2.gmms[key].gaussians)
@@ -206,7 +209,7 @@ using Test
         ecl_idxs = vcat([opsd_ecls[i][ecl_res[i]] for i=1:4]...)
         ecl_mgmm = features_from_structure(opsd, ecl_idxs)
         ecl_mgmm_combined = features_from_structure(opsd, ecl_idxs; combined=true)
-        ecl_mgmm_combined_2 = features_from_structure(opsd, ecl_idxs; combined=true, σfun=GPCRAnalysis.equalvolumeradius, ϕfun=(a,r)->1.0)
+        ecl_mgmm_combined_2 = features_from_structure(opsd, ecl_idxs; combined=true, σfun=GPCRAnalysis.equalvolumeradius, ϕfun=(a,r,f)->1.0)
         @test sum(length, values(ecl_mgmm.gmms)) > sum(length, values(ecl_mgmm_combined.gmms))
         for key in keys(ecl_mgmm.gmms)
             for (g1, g2) in zip(ecl_mgmm_combined.gmms[key].gaussians, ecl_mgmm_combined_2.gmms[key].gaussians)
@@ -214,6 +217,75 @@ using Test
                 @test g1.σ >= g2.σ
                 @test g1.ϕ >= g2.ϕ
             end
+        end
+    end
+
+    @testset "Forces" begin
+        interactions = [(:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1]
+        mgmmx = IsotropicMultiGMM(Dict(:Steric     => IsotropicGMM([IsotropicGaussian([0.0, 0.0], 1.0, 1.0)]),
+                                       :Hydrophobe => IsotropicGMM([IsotropicGaussian([0.0, 0.0], 2.0, 1.0)])))
+        mgmmy = IsotropicMultiGMM(Dict(:Steric     => IsotropicGMM([IsotropicGaussian([1.0, 1.0], 1.0, 1.0)]),
+                                       :Hydrophobe => IsotropicGMM([IsotropicGaussian([1.0, 1.0], 2.0, 1.0)])))
+        forces = forcecomponents([mgmmx, mgmmy], interactions)
+        @test length(forces) == 2
+        @test iszero(forces[1] + forces[2])
+        @test all(f -> norm(sum(f; dims=2)) > 0.1, forces)   # non-zero force
+        w = optimize_weights(forces)
+        @test all(>=(0), w)
+        @test sum(w) ≈ 1 atol=1e-6
+        weighted_interactions = [key => w0*wi for ((key, w0), wi) in zip(interactions, w)]
+        wforces = forcecomponents([mgmmx, mgmmy], weighted_interactions)
+        @test all(f .* w' ≈ wf for (f, wf) in zip(forces, wforces))
+        @test all(f -> norm(sum(f; dims=2)) < 1e-4, wforces)   # net-zero force
+        wnew = optimize_weights(wforces)
+        @test wnew[1] ≈ 0.5 atol=1e-4
+        @test wnew[2] ≈ 0.5 atol=1e-4
+
+        #
+        #      Y
+        #          W   X
+        #      Z
+        #
+        #where WX is hydrophobic, WY is H-bond, and WZ is ionic (all attractive)
+        interactions = [(:Hydrophobe, :Hydrophobe) => -1, (:Donor, :Acceptor) => -1, (:Ionic, :Ionic) => 1]
+        mgmmw = IsotropicMultiGMM(Dict(:Hydrophobe   => IsotropicGMM([IsotropicGaussian([ 0.0, 0.0], 2.0, 1.0)]),
+                                       :Donor        => IsotropicGMM([IsotropicGaussian([ 0.0, 0.0], 1.5, 1.0)]),
+                                       :PosIonizable => IsotropicGMM([IsotropicGaussian([ 0.0, 0.0], 4.0, 1.0)])))
+        mgmmx = IsotropicMultiGMM(Dict(:Hydrophobe   => IsotropicGMM([IsotropicGaussian([ 1.0, 0.0], 2.0, 1.0)])))
+        mgmmy = IsotropicMultiGMM(Dict(:Acceptor     => IsotropicGMM([IsotropicGaussian([-1.0, 1.0], 1.5, 1.0)])))
+        mgmmz = IsotropicMultiGMM(Dict(:NegIonizable => IsotropicGMM([IsotropicGaussian([-1.0,-1.0], 4.0, 1.0)])))
+        forces = forcecomponents([mgmmw, mgmmx, mgmmy, mgmmz], interactions, [1])
+        @test length(forces) == 1
+        @test all(f -> norm(sum(f; dims=2)) > 0.1, forces)   # non-zero force
+        f = only(forces)
+        F = f' * f
+        # Test that each force is in the expected direction
+        @test f[:, 1] ≈ ([ 1, 0] \ f[:, 1]) * [ 1, 0]
+        @test f[:, 2] ≈ ([-1, 1] \ f[:, 2]) * [-1, 1]
+        @test f[:, 3] ≈ ([-1,-1] \ f[:, 3]) * [-1,-1]
+        w = optimize_weights(forces)
+        @test all(>=(0), w)
+        @test sum(w) ≈ 1
+        weighted_interactions = [key => w0*wi for ((key, w0), wi) in zip(interactions, w)]
+        wforces = forcecomponents([mgmmw, mgmmx, mgmmy, mgmmz], weighted_interactions, [1])
+        @test all(f .* w' ≈ wf for (f, wf) in zip(forces, wforces))
+        @test all(f -> norm(sum(f; dims=2)) < 1e-6, wforces)   # net-zero force
+        wF = sum(f' * f for f in wforces)
+        @test all(abs.(wF*ones(3)) .< 1e-7)   # gradient is zero at the minimum even under re-tuning
+
+        interactions = [(:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1, (:Donor, :Acceptor) => -1]  # drop the ionic
+        opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
+        tm_res = inward_tm_residues(opsd, opsd_tms)
+        tm_idxs = reduce(vcat, [tm[idx] for (tm, idx) in zip(opsd_tms, tm_res)])
+        for combined in (false, true)
+            forces = forcecomponents(opsd, interactions, tm_idxs; combined)
+            w = optimize_weights(forces)
+            # Exact force balance is presumably impossible to achieve in this case.
+            # For a weaker test, check that weighted interactions are scaled as expected.
+            weighted_interactions = [key => w0*wi for ((key, w0), wi) in zip(interactions, w)]
+            wforces = forcecomponents(opsd, weighted_interactions, tm_idxs; combined)
+            @test all(f .* w' ≈ wf for (f, wf) in zip(forces, wforces))
         end
     end
 
