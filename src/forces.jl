@@ -90,13 +90,13 @@ function forcecomponents(mgmms::AbstractVector{<:IsotropicMultiGMM{N}}, interact
         for (key, c) in pairlist
             for (ii, i) in enumerate(residueindexes)
                 mgmmi = mgmms[i]
-                gmmx = get(mgmmi.gmms, key[1], nothing)
+                gmmx = get(mgmmi, key[1], nothing)
                 gmmx === nothing && continue
                 f = @view(forces[ii][:, k])
                 for j in eachindex(mgmms)
                     i == j && continue
                     mgmmj = mgmms[j]
-                    gmmy = get(mgmmj.gmms, key[2], nothing)
+                    gmmy = get(mgmmj, key[2], nothing)
                     gmmy === nothing && continue
                     for x in gmmx, y in gmmy
                         force!(f, x, y; coef=c)
