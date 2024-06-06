@@ -55,11 +55,8 @@ function combined_ϕfun(atoms, r, f::Symbol)
 end
 
 function add_feature!(mgmm::IsotropicMultiGMM, key, μ, σ, ϕ)
-    if !haskey(mgmm.gmms, key)
-        push!(mgmm.gmms, key => IsotropicGMM([IsotropicGaussian(vec(μ), σ, ϕ)]))
-    else
-        push!(mgmm.gmms[key].gaussians, IsotropicGaussian(vec(μ), σ, ϕ))
-    end
+    gmm = get!(valtype(mgmm), mgmm, key)
+    push!(gmm, eltype(gmm)(vec(μ), σ, ϕ))
 end
 
 function add_features_from_atom!(mgmm::IsotropicMultiGMM, a::PDBAtom, r::PDBResidue, σfun, ϕfun)
