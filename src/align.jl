@@ -7,11 +7,11 @@
 Return a rotated and shifted version of `moving` so that the α-carbons of residues `moving[sm]` have least
 mean square error deviation from positions `fixedpos` or those of residues `fixed`.
 """
-function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; seqname=nothing)
+function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; seqname=nothing, warn::Bool=true)
     length(sm) == size(fixedpos, 2) || throw(DimensionMismatch("reference has $(size(fixedpos, 2)) positions, but `sm` has $(length(sm))"))
     movres = moving[sm]
     keep = map(!isnothing, movres)
-    if !all(keep)
+    if !all(keep) && warn
         @warn "missing $(length(keep)-sum(keep)) anchors for sequence $seqname"
     end
     movpos = residue_centroid_matrix(movres[keep])
