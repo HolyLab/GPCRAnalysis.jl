@@ -46,8 +46,8 @@ function species(name::AbstractString)
     return m.captures[1]::AbstractString
 end
 
-const rex_uniprotX_Swiss = r"^([A-Z0-9]{1,5})($|_)"   # Swiss
-const rex_uniprot_accession = r"^([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:$|_|\.\d+)"
+const rex_uniprotX_Swiss = r"^([A-Z0-9]{1,5})(?:$|_)"   # Swiss
+const rex_uniprot_accession = r"^([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:$|_|\||\.\d+)"
 
 """
     uniprotX(name)

@@ -18,6 +18,8 @@ using Test
         @test @inferred(GPCRAnalysis.strip_residue_range("Q8VGW6_MOUSE/31-308")) == "Q8VGW6_MOUSE"
         @test @inferred(species("Q8VGW6_MOUSE/31-308")) == "MOUSE"
         @test @inferred(uniprotX("Q8VGW6_MOUSE/31-308")) == "Q8VGW6"
+        # ClusalOmega MSA codes
+        @test uniprotX("Q5QD11|reviewed|Trace") == "Q5QD11"
         # Examples from https://www.uniprot.org/help/accession_numbers
         @test @inferred(uniprotX("A2BC19")) == "A2BC19"
         @test @inferred(uniprotX("P12345")) == "P12345"
