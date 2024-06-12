@@ -132,3 +132,35 @@ function download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd
         end
     end
 end
+
+const pLDDTcolors = [  # see https://github.com/sokrypton/ColabFold?tab=readme-ov-file#faq
+    RGB{N0f8}(0.051, 0.341, 0.827),
+    RGB{N0f8}(0.416, 0.796, 0.945),
+    RGB{N0f8}(0.996, 0.851, 0.212),
+    RGB{N0f8}(0.992, 0.490, 0.302),
+]
+function pLDDTcolor(pLDDT::Real)
+    if 0 <= pLDDT < 50
+        return pLDDTcolors[4]
+    elseif pLDDT < 70
+        return pLDDTcolors[3]
+    elseif pLDDT < 90
+        return pLDDTcolors[2]
+    elseif pLDDT <= 100
+        return pLDDTcolors[1]
+    else
+        throw(ArgumentError("pLDDT score must be between 0 and 100, got $pLDDT"))
+    end
+end
+
+"""
+    pLDDTcolor(r::PDBResidue)
+    pLDDTcolor(score::Real)
+
+Return the color corresponding to the pLDDT score (a measure of confidence) of a residue.
+"""
+pLDDTcolor(r::PDBResidue) = pLDDTcolor(pLDDT(r))
+pLDDTcolor(a::PDBAtom) = pLDDTcolor(pLDDT(a))
+
+pLDDT(r::PDBResidue) = pLDDT(only(unique(a -> a.B, r.atoms)))
+pLDDT(a::PDBAtom) = parse(Float64, a.B)

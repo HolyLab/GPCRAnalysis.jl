@@ -7,6 +7,7 @@ using InvertedIndices
 using Statistics
 using LinearAlgebra
 using JuMP, HiGHS
+using ColorTypes
 using Test
 
 # skip the network-hitting components by setting `skip_download = true` in the global namespace
@@ -360,6 +361,7 @@ using Test
                 afnbyidx(i) = getchain(joinpath(path, msacode2structfile[MSACode(sequencenames(msa)[i])]))
 
                 c1, c2 = afnbyidx(1), afnbyidx(5)
+                @test @inferred(pLDDTcolor(first(c1))) isa AbstractRGB
                 conserved_residues = c1[SequenceMapping(getsequencemapping(msa, 1))[conserved_cols]]
                 badidx = findall(==(nothing), conserved_residues)
                 conserved_residues = convert(Vector{PDBResidue}, conserved_residues[Not(badidx)])
