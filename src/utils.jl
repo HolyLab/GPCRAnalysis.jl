@@ -42,7 +42,7 @@ end
 
 Read a PDB file `filename` and extract the specified chain.
 """
-getchain(filename::AbstractString; model="1", chain="A") = read(filename, PDBFile; model, chain)
+getchain(filename::AbstractString; model="1", chain="A") = read_file(filename, PDBFile; model, chain)
 
 function validate_seq_residues(seq::AnnotatedAlignedSequence, chain::AbstractVector{PDBResidue})
     for (i, r) in zip(getsequencemapping(seq), seq)

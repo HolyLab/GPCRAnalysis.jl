@@ -56,7 +56,7 @@ using Test
     @testset "MSA" begin
         # The test file is copied from MIToS/test/data, with gratitude
         pf09645_sto = "PF09645_full.stockholm"
-        msa = read(pf09645_sto, MIToS.Pfam.Stockholm)
+        msa = MIToS.MSA.read_file(pf09645_sto, MIToS.Pfam.Stockholm)
         @test MIToS.MSA.nsequences(filter_species!(deepcopy(msa), "ATV")) == 1
         @test MIToS.MSA.nsequences(filter_long!(deepcopy(msa), 70)) == 3
 
@@ -137,7 +137,7 @@ using Test
         D = [1 0 1 2 3; 3 2 1 0 1; 4 3 2 1 0; 5 4 3 2 1]
         @test align_nw(D, gapcosts) == [(1, 2), (2, 3), (3, 4), (4, 5)]
 
-        opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd = read_file("AF-P15409-F1-model_v4.pdb", PDBFile)
         opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
         @test align_ranges(opsd, opsd, opsd_tms) == opsd_tms
 
@@ -153,7 +153,7 @@ using Test
         testscore(S, P, D, gapcosts)
     end
     @testset "Pocket residues and features" begin
-        opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd = read_file("AF-P15409-F1-model_v4.pdb", PDBFile)
         opsdr = [three2residue(r.id.name) for r in opsd]
         # These are not quite accurate, from https://www.uniprot.org/uniprotkb/P15409/entry#subcellular_location
         # the actual answer is
@@ -277,7 +277,7 @@ using Test
         @test all(abs.(wF*ones(3)) .< 1e-7)   # gradient is zero at the minimum even under re-tuning
 
         interactions = [(:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1, (:Donor, :Acceptor) => -1]  # drop the ionic
-        opsd = read("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd = read_file("AF-P15409-F1-model_v4.pdb", PDBFile)
         opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
         tm_res = inward_tm_residues(opsd, opsd_tms)
         tm_idxs = reduce(vcat, [tm[idx] for (tm, idx) in zip(opsd_tms, tm_res)])
@@ -340,7 +340,7 @@ using Test
                 if !isfile(pfampath)
                     Pfam.downloadpfam("PF03402"; filename=pfampath)
                 end
-                msa = read(pfampath, MSA.Stockholm, generatemapping=true, useidcoordinates=true)
+                msa = MIToS.MSA.read_file(pfampath, MSA.Stockholm, generatemapping=true, useidcoordinates=true)
                 filter_species!(msa, "MOUSE")
                 # Make small enough for a decent download test
                 filtersequences!(msa, coverage(msa) .>= 0.9)
@@ -413,9 +413,9 @@ using Test
                 chimerafile = tempname() * ".cxc"
                 chimerax_script(chimerafile, ["K7N775", "K7N731"], msa, [66, 69]; dir=path)
                 script = read(chimerafile, String)
-                @test  occursin("open $path/AF-K7N775", script)
-                @test  occursin("open $path/AF-K7N731", script)
-                @test !occursin("open $path/AF-K7N701", script)
+                @test  occursin("open $(joinpath(path, "AF-K7N775"))", script)
+                @test  occursin("open $(joinpath(path, "AF-K7N731"))", script)
+                @test !occursin("open $(joinpath(path, "AF-K7N701"))", script)
                 @test occursin("show #1 :67", script)
                 @test occursin("show #1 :70", script)
                 @test occursin("show #2 :70", script)
