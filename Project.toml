@@ -1,7 +1,7 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
-version = "0.4.2"
+version = "0.4.3"
 
 [deps]
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
@@ -48,7 +48,7 @@ Interpolations = "0.15"
 JSON3 = "1"
 JuMP = "1"
 LinearAlgebra = "1"
-MIToS = "2"
+MIToS = "3"
 MultivariateStats = "0.9, 0.10"
 MutableConvexHulls = "0.2"
 OffsetArrays = "1"
