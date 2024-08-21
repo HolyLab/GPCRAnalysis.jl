@@ -38,16 +38,16 @@ function query_ncbi(id)
 end
 
 """
-    getchain(filename::AbstractString; model="1", chain="A")
+    getchain(filename::AbstractString; model=1, chain="A")
 
 Read a PDB file `filename` and extract the specified chain.
 """
-getchain(filename::AbstractString; model="1", chain="A") = read_file(filename, PDBFile; model, chain)
+getchain(filename::AbstractString; model=1, chain="A") = read(filename, PDBFormat)[model][chain]
 
-function validate_seq_residues(seq::AnnotatedAlignedSequence, chain::AbstractVector{PDBResidue})
+function validate_seq_residues(seq::AnnotatedAlignedSequence, chain)
     for (i, r) in zip(getsequencemapping(seq), seq)
         (r == GAP || r == XAA) && continue
-        res = three2residue(chain[i].id.name)
+        res = three2residue(String(resname(chain[i])))
         res == r || return false
     end
     return true
@@ -78,5 +78,25 @@ function findall_subseq(subseq, seq)
     return starts
 end
 
-alpha_nitrogen(r) = r.atoms[findfirst(a -> a.atom == "N", r.atoms)]
-alpha_carbon(r) = r.atoms[findfirst(a -> a.atom == "CA", r.atoms)]
+alpha_nitrogen(r) = firstmatch(a -> atomname(a) == "N", r)
+alpha_carbon(r) = firstmatch(a -> atomname(a) == "CA", r)
+
+function firstmatch(f, iter)
+    for x in iter
+        if f(x)
+            return x
+        end
+    end
+    return nothing
+end
+
+function skipnothing(v::AbstractVector{Union{T,Nothing}}) where T
+    return T[x for x in v if x !== nothing]
+end
+
+MIToS.PDB.ishydrophobic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._hydrophobic
+MIToS.PDB.isaromatic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._aromatic
+MIToS.PDB.iscationic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._cationic
+MIToS.PDB.isanionic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._anionic
+MIToS.PDB.ishbonddonor(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in keys(MIToS.PDB._hbond_donor)
+MIToS.PDB.ishbondacceptor(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in keys(MIToS.PDB._hbond_acceptor)

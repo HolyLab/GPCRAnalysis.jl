@@ -41,11 +41,11 @@ The output is a list of 3×4 matrices, one for each residue in `seq`.
 
 See also: [`optimize_weights`](@ref), [`forcedict`](@ref).
 """
-function forcecomponents(seq::AbstractVector{PDBResidue}, interactions::InteractionList, residueindexes=eachindex(seq); kwargs...)
+function forcecomponents(seq::AbstractVector{<:AbstractResidue}, interactions::InteractionList, residueindexes=eachindex(seq); kwargs...)
     # Create a MGMM for each residue
     mgmms = [IsotropicMultiGMM(Dict{Symbol,IsotropicGMM{3,Float64}}()) for _ in seq]
-    for i in eachindex(seq)
-        add_features_from_residue!(mgmms[i], seq[i]; kwargs...)
+    for (i, seqi) in enumerate(seq)
+        add_features_from_residue!(mgmms[i], seqi; kwargs...)
     end
     forces = forcecomponents(mgmms, interactions, residueindexes)
     # Project out the component of the force that would stretch or compress the covalent bonds between residues
@@ -53,14 +53,14 @@ function forcecomponents(seq::AbstractVector{PDBResidue}, interactions::Interact
         force = forces[ii]
         if i > firstindex(seq)
             # Get the alpha-carbon to nitrogen vector
-            v = alpha_nitrogen(seq[i-1]).coordinates - alpha_carbon(seq[i]).coordinates
+            v = coords(alpha_nitrogen(seq[i-1])) - coords(alpha_carbon(seq[i]))
             v /= norm(v)
             # Project out the component of the force that would stretch or compress the bond
             force -= v * (v' * force)
         end
         if i < lastindex(seq)
             # Get the nitrogen to alpha-carbon vector
-            v = alpha_carbon(seq[i+1]).coordinates - alpha_nitrogen(seq[i]).coordinates
+            v = coords(alpha_carbon(seq[i+1])) - coords(alpha_nitrogen(seq[i]))
             v /= norm(v)
             # Project out the component of the force that would stretch or compress the bond
             force -= v * (v' * force)
@@ -69,6 +69,8 @@ function forcecomponents(seq::AbstractVector{PDBResidue}, interactions::Interact
     end
     return forces
 end
+forcecomponents(seq, interactions::InteractionList, residueindexes=eachindex(seq); kwargs...) =
+    forcecomponents(collectresidues(seq), interactions, residueindexes; kwargs...)
 
 function forcecomponents(mgmms::AbstractVector{<:IsotropicMultiGMM{N}}, interactions::InteractionList, residueindexes=eachindex(mgmms)) where N
     GaussianMixtureAlignment.validate_interactions(Dict(interactions)) || throw(ArgumentError("interactions must appear in only one order, got $interactions"))

@@ -1,11 +1,11 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
-version = "0.4.3"
+version = "0.5.0"
 
 [deps]
+BioStructures = "de9282ab-8554-53be-b2d6-f6c222edabfc"
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
-CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 FixedPointNumbers = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
@@ -34,8 +34,8 @@ JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 GPCRAnalysisJuMPExt = ["JuMP", "HiGHS"]
 
 [compat]
+BioStructures = "4.2"
 ColorTypes = "0.11"
-CoordinateTransformations = "0.6"
 Distances = "0.10"
 Downloads = "1"
 FixedPointNumbers = "0.8"

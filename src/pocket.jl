@@ -17,12 +17,12 @@ function z2tmcoords(z, allitps)
     return [itpos2coord(p, tmitps) for (p,tmitps) in zip(itpos, allitps)]
 end
 
-function sidechaincentroid(r::PDBResidue) # ignoring mass for now
-    scatoms = filter(a -> a.atom ∉ ["N","CA","C","O"], r.atoms)
-    return length(scatoms) == 0 ? nothing : sum(a.coordinates for a in scatoms) / length(scatoms)
+function sidechaincentroid(r::AbstractResidue) # ignoring mass for now
+    scatoms = collectatoms(r, !backboneselector)
+    return length(scatoms) == 0 ? nothing : sum(coords(a) for a in scatoms) / length(scatoms)
 end
 
-function scvector(r::PDBResidue)
+function scvector(r::AbstractResidue)
     cacoord = alphacarbon_coordinates(r)
     sccoord = sidechaincentroid(r)
     return sccoord === nothing ? zero(cacoord) : sccoord - cacoord
@@ -33,7 +33,7 @@ function res_inside_hull(sccoord, tmcoords) # tmcoords is a list of 2D points in
     return insidehull(sccoord[1:2], h)
 end
 
-function tm_res_is_inward(r::PDBResidue, itps)
+function tm_res_is_inward(r::AbstractResidue, itps)
     scvec = scvector(r)
     all(iszero, scvec) && return false
     sccoord = alphacarbon_coordinates(r) .+ scvec
@@ -47,14 +47,14 @@ Return an array of boolean[] indicating which residues (of those specified by `t
 
 `tmidxs` is a vector (typically of length 7, with each entry corresponding to a transmembrane region) of ranges of residue indices.
 """
-function inward_tm_residues(seq, tmidxs)
+function inward_tm_residues(seq::AbstractVector{<:AbstractResidue}, tmidxs)
     tmcoords = [alphacarbon_coordinates_matrix(seq[tm]) for tm in tmidxs]
     itps = [[interpolate(tm[i,:], BSpline((i === 3 ? Linear() : Cubic()))) for i=1:3] for tm in tmcoords]
     return [[tm_res_is_inward(r, itps) for r in seq[tm]] for tm in tmidxs]
 end
+inward_tm_residues(seq::Chain, tmidxs) = inward_tm_residues(collectresidues(seq), tmidxs)
 
-
-function ecl_res_is_inward(r::PDBResidue, topcenter)
+function ecl_res_is_inward(r::AbstractResidue, topcenter)
     scvec = scvector(r)
     all(iszero, scvec) && return false
     accoord = alphacarbon_coordinates(r)
@@ -69,8 +69,10 @@ Return an array of boolean[] indicating which residues (of those specified by `e
 
 `eclidxs` is a vector (with each entry corresponding to an extracellular loop) of ranges of residue indices.
 """
-function inward_ecl_residues(seq, eclidxs; includes_amino_terminus::Bool=false)
+function inward_ecl_residues(seq::AbstractVector{<:AbstractResidue}, eclidxs; includes_amino_terminus::Bool=false)
     tm_top_idxs = filter(x -> 0 < x < length(seq), vcat([[ecl[1] - 1, ecl[end] + 1] for ecl in eclidxs[begin+includes_amino_terminus:end]]...))
     topcenter = mean(alphacarbon_coordinates_matrix(seq[tm_top_idxs]); dims=2)
     return [[ecl_res_is_inward(r, topcenter) for r in seq[ecl]] for ecl in eclidxs]
 end
+inward_ecl_residues(seq, eclidxs; includes_amino_terminus::Bool=false) =
+    inward_ecl_residues(collectresidues(seq), eclidxs; includes_amino_terminus)

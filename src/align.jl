@@ -1,13 +1,16 @@
 ## Minimum-distance alignment
 
 """
-    align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
-    align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping)
+    tform = align(fixedpos::AbstractMatrix{Float64}, moving::Chain, sm::SequenceMapping)
+    tform = align(fixed::Chain, moving::Chain, sm::SequenceMapping)
 
-Return a rotated and shifted version of `moving` so that the α-carbons of residues `moving[sm]` have least
-mean square error deviation from positions `fixedpos` or those of residues `fixed`.
+Return a rotated and shifted version of `moving` so that the centroids of
+residues `moving[sm]` have least mean square error deviation from positions
+`fixedpos` or those of residues `fixed`. `fixed` or `fixedpos` should include
+just the residues or positions you want to align to, but `moving` should be an
+entire chain.
 """
-function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; seqname=nothing, warn::Bool=true)
+function align(fixedpos::AbstractMatrix{Float64}, moving::StructureLike, sm::SequenceMapping; seqname=nothing, warn::Bool=true)
     length(sm) == size(fixedpos, 2) || throw(DimensionMismatch("reference has $(size(fixedpos, 2)) positions, but `sm` has $(length(sm))"))
     movres = moving[sm]
     keep = map(!isnothing, movres)
@@ -16,36 +19,33 @@ function align(fixedpos::AbstractMatrix{Float64}, moving::AbstractVector{PDBResi
     end
     movpos = residue_centroid_matrix(movres[keep])
     fixedpos = fixedpos[:,keep]
-    refmean = mean(fixedpos; dims=2)
-    movmean = mean(movpos; dims=2)
-    R = MIToS.PDB.kabsch((fixedpos .- refmean)', (movpos .- movmean)')
-    return change_coordinates(moving, (coordinatesmatrix(moving) .- movmean') * R .+ refmean')
+    return Transformation(movpos, fixedpos, sm[keep], findall(keep))
 end
-align(fixed::AbstractVector{PDBResidue}, moving::AbstractVector{PDBResidue}, sm::SequenceMapping; kwargs...) =
-    align(residue_centroid_matrix(fixed), moving, sm; kwargs...)
+align(fixed, moving::StructureLike, sm::SequenceMapping; kwargs...) = align(residue_centroid_matrix(fixed), moving, sm; kwargs...)
 
-function mapclosest(mapto::AbstractVector{PDBResidue}, mapfrom::AbstractVector{PDBResidue})
+function mapclosest(mapto, mapfrom)
     refcenters = residue_centroid_matrix(mapto)
     seqcenters = residue_centroid_matrix(mapfrom)
     D = pairwise(Euclidean(), refcenters, seqcenters; dims=2)
     assignment, _ = hungarian(D)
-    return collect(zip(assignment, [j == 0 ? convert(eltype(D), NaN) : D[i, j] for (i, j) in enumerate(assignment)]))
-    # d, m = findmin(D; dims=1)
-    # return [mi[1] => di for (mi, di) in zip(vec(m), vec(d))]
+    fillval = convert(eltype(D), NaN)
+    return collect(zip(assignment, [j == 0 ? fillval : D[i, j] for (i, j) in enumerate(assignment)]))
 end
 
 ## Align to membrane
 
 """
-    newchain = align_to_membrane(chain::AbstractVector{PDBResidue}, tms; extracellular=true)
+    tform = align_to_membrane(chain::ChainLike, tms; extracellular=true)
 
-Align the `chain` to the membrane, given the transmembrane segments `tms` as
-residue-indexes (e.g., `[37:61, 74:96, ...]`). `extracelluar` should be true if
-the N-terminus of the protein is extracellular (`chain[first(tms[1])]` is at the
-extracellular face), and false otherwise.
+Compute the rigid transformation `tform` needed to align `chain` to the
+membrane, given the transmembrane segments `tms` as residue-indexes (e.g.,
+`[37:61, 74:96, ...]`). `extracelluar` should be true if the N-terminus of the
+protein is extracellular (`chain[first(tms[1])]` is at the extracellular face),
+and false otherwise.
 
-`newchain` is oriented so that the center of the membrane is `z=0` and
-extracellular is positive.
+`applytransform!(chain, tform)` (or the `model` that includes `chain`) will
+re-orient `chain` so that the center of the membrane is `z=0` and extracellular
+is positive.
 
 The algorithm finds the membrane normal `u` by maximizing the ratio
 
@@ -53,13 +53,13 @@ The algorithm finds the membrane normal `u` by maximizing the ratio
   -----------------
     sumᵢ (u ⋅ δᵢ)²
 
-where `vᵢ` is a vector parallel to the `i`th TM helix, and `δᵢ` is a within-leaflet
-atomic displacement.
+where `vᵢ` is a vector parallel to the `i`th TM helix, and `δᵢ` is a
+within-leaflet atomic displacement.
 """
-function align_to_membrane(chain::AbstractVector{PDBResidue}, tms; extracellular::Bool=true)
+function align_to_membrane(chain::ChainLike, tms; extracellular::Bool=true)
     function leaflet_displacements(residues)
-        coords = reduce(vcat, [coordinatesmatrix(r) for r in residues])
-        meanpos = mean(coords, dims=1)
+        coords = reduce(hcat, [coordarray(r) for r in residues])
+        meanpos = mean(coords, dims=2)
         return coords .- meanpos
     end
 
@@ -79,33 +79,38 @@ function align_to_membrane(chain::AbstractVector{PDBResidue}, tms; extracellular
     # eigenvector corresponding to the smallest eigenvalue of the matrix.
     μtm = mean(tm_vectors)
     A = sum(u -> (Δu = u - μtm; Δu * Δu'), tm_vectors)
-    B = delta_i'*delta_i + delta_e'*delta_e
+    B = delta_i*delta_i' + delta_e*delta_e'
     λ, u = eigen(A, B)
     u = u[:, argmax(λ)]
     u = u / norm(u)
     # Find the projection by `u` of atom coordinates in each leaflet
-    proj_e = reduce(vcat, [coordinatesmatrix(r) for r in leaflet_e]) * u
-    proj_i = reduce(vcat, [coordinatesmatrix(r) for r in leaflet_i]) * u
+    proj_e = reduce(hcat, [coordarray(r) for r in leaflet_e])' * u
+    proj_i = reduce(hcat, [coordarray(r) for r in leaflet_i])' * u
     # Compute a rotation that aligns u to the z-axis
     t = [0, 0, mean(proj_e) > mean(proj_i) ? 1 : -1]   # extracellular is positive
     q = QuatRotation(1 + u'*t, cross(u, t)...)
     # Apply the rotation to the coordinates, and offset the z-coordinate to the mean of the leaflets
-    coords = coordinatesmatrix(chain)
-    μ = vec(mean(coords, dims=1))
-    newcoords = (q * (coords' .- μ))' .+ [0, 0, (median(proj_e) + median(proj_i))/2 - μ'*u]'
-    return change_coordinates(chain, newcoords)
+    ccoords = coordarray(chain)
+    μ = vec(mean(ccoords, dims=2))
+    return Transformation(μ, [0, 0, (median(proj_e) + median(proj_i))/2 - μ'*u], RotMatrix(q))
 end
 
+"""
+    tform = align_to_axes(strct)
+
+Compute the transformation needed to align the principle axes of inertia of
+`strct` with the coordinate axes.
+"""
 function align_to_axes(strct)
-    coords = coordinatesmatrix(strct)
-    coords = coords .- mean(coords, dims=1)
-    tform = GaussianMixtureAlignment.inertial_transforms(coords')[1]
-    tform = AffineMap(Matrix(tform.linear),[tform.translation...])
-    return change_coordinates(strct, tform(coords')')
+    scoords = coordarray(strct)
+    μ = mean(scoords, dims=2)
+    scoords = scoords .- μ
+    rotmtrx = GaussianMixtureAlignment.inertial_transforms(scoords)[1]
+    return Transformation(μ, [0, 0, 0], rotmtrx)
 end
 
-function collect_leaflet_residues(chain, tms, extracellular)
-    leaflet_e, leaflet_i = PDBResidue[], PDBResidue[]
+function collect_leaflet_residues(chain, tms, extracellular::Bool)
+    leaflet_e, leaflet_i = Residue[], Residue[]
     for r in tms
         start, stop = extrema(r)
         if extracellular
@@ -121,6 +126,11 @@ function collect_leaflet_residues(chain, tms, extracellular)
 end
 
 ## Needleman-Wunsch alignment
+
+# This implements sequence alignment based on three-dimensional structure, where
+# the cost of aligning two residues is the Euclidean distance between their
+# centroids. The Needleman-Wunsch algorithm is used to find the optimal alignment
+# of two sequences.
 
 @enum NWParent NONE DIAG LEFT UP
 Base.show(io::IO, p::NWParent) = print(io, p == NONE ? 'X' :
@@ -203,8 +213,11 @@ Find the optimal `ϕ` matching `seq1[ϕ[k][1]]` to `seq2[ϕ[k][2]]` for all
 `k`. `mode` controls the computation of pairwise matching penalties, and can be
 either `:distance` or `:distance_orientation`, where the latter adds any
 mismatch in sidechain orientation to the distance penalty.
+
+`seq1` and `seq2` must be aligned to each other in 3D space before calling this
+function. See [`align`](@ref).
 """
-function align_nw(seq1::AbstractVector{PDBResidue}, seq2::AbstractVector{PDBResidue}, gapcosts::NWGapCosts;
+function align_nw(seq1::ChainLike, seq2::ChainLike, gapcosts::NWGapCosts;
                   mode::Symbol=:distance_orientation)
     supported_modes = (:distance, :distance_orientation)
     mode ∈ supported_modes || throw(ArgumentError("supported modes are $(supported_modes), got $mode"))
@@ -227,7 +240,7 @@ Transfer `refranges`, a list of reside index spans in `seq2`, to `seq1`. `seq1` 
 `seq2` must be spatially aligned, and the assignment is made by minimizing
 inter-chain distance subject to the constraint of preserving sequence order.
 """
-function align_ranges(seq1::AbstractVector{PDBResidue}, seq2::AbstractVector{PDBResidue}, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...)
+function align_ranges(seq1::ChainLike, seq2::AbstractVector{<:AbstractResidue}, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...)
     anchoridxs = sizehint!(Int[], length(refranges)*2)
     for r in refranges
         push!(anchoridxs, first(r), last(r))
@@ -237,6 +250,8 @@ function align_ranges(seq1::AbstractVector{PDBResidue}, seq2::AbstractVector{PDB
     @assert last.(ϕ) == eachindex(anchoridxs)
     return [ϕ[i][1]:ϕ[i+1][1] for i in 1:2:length(ϕ)]
 end
+align_ranges(seq1::ChainLike, seq2::Chain, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...) =
+    align_ranges(seq1, collectresidues(seq2), refranges; kwargs...)
 
 function score_nw(D::AbstractMatrix, gapcosts::NWGapCosts)
     Base.require_one_based_indexing(D)

@@ -4,10 +4,14 @@ using Downloads
 using Statistics
 using LinearAlgebra
 
-using MIToS
-using MIToS.Pfam
-using MIToS.MSA
-using MIToS.PDB
+using BioStructures
+
+using MIToS: MIToS, Pfam, MSA
+using MIToS.MSA: AbstractMultipleSequenceAlignment, AnnotatedAlignedSequence, AnnotatedMultipleSequenceAlignment,
+                 ReducedAlphabet, GAP, XAA
+using MIToS.MSA: getsequence, getannotsequence, getsequencemapping, getresidues, three2residue, sequencenames,
+                 filtersequences!, percentsimilarity
+using MIToS.PDB: vanderwaalsradius, ishydrophobic, isaromatic, iscationic, isanionic, ishbonddonor, ishbondacceptor
 
 using MultivariateStats
 using Distances
@@ -20,7 +24,6 @@ using TravelingSalesmanHeuristics
 
 using Interpolations
 using MutableConvexHulls
-using CoordinateTransformations
 using GaussianMixtureAlignment
 
 # For querying the Uniprot and Alphafold REST APIs
@@ -32,7 +35,11 @@ using GZip
 using FixedPointNumbers
 using ColorTypes
 
-export @res_str
+const ChainLike = Union{Chain, AbstractVector{<:AbstractResidue}}   # an iterable of residues
+const ResidueLike = Union{Residue, AbstractVector{<:AbstractAtom}}  # an iterable of atoms
+const StructureLike = Union{ChainLike, Model, MolecularStructure}
+
+# export @res_str
 
 export SequenceMapping, AccessionCode, MSACode, NWGapCosts
 export species, uniprotX, query_uniprot_accession, query_ebi_proteins, query_ncbi
@@ -40,8 +47,9 @@ export try_download_alphafold, query_alphafold_latest, download_alphafolds, alph
        findall_subseq, pLDDT, pLDDTcolor
 export align_to_axes, align_to_membrane, align_nw, align_ranges
 export filter_species!, filter_long!, sortperm_msa, chimerax_script
-export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, alphacarbon_coordinates, alphacarbon_coordinates_matrix, mapclosest, chargelocations, positive_locations, negative_locations
-export StructAlign, residueindex, ismapped
+export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, alphacarbon_coordinates,
+       alphacarbon_coordinates_matrix, mapclosest, chargelocations, positive_locations, negative_locations
+export StructAlign, residueindex, ismapped, skipnothing
 export BWScheme, lookupbw
 export aa_properties, aa_properties_zscored
 export sidechaincentroid, scvector, inward_tm_residues, inward_ecl_residues
@@ -61,6 +69,5 @@ include("chimerax.jl")
 include("pocket.jl")
 include("features.jl")
 include("forces.jl")
-include("deprecated.jl")
 
 end

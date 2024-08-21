@@ -89,7 +89,7 @@ end
 
 Attempt to download an [AlphaFold](https://alphafold.com/) structure.
 Returns `nothing` if no entry corresponding to `uniprotXname` exists; otherwise
-it return `path`, the pathname of the saved file.
+it returns `path`, the pathname of the saved file.
 
 In general, a better approach is to use [`download_alphafolds`](@ref) for multiple proteins,
 or [`query_alphafold_latest`](@ref) combined with `Downloads.download` for a single protein.
@@ -154,13 +154,13 @@ function pLDDTcolor(pLDDT::Real)
 end
 
 """
-    pLDDTcolor(r::PDBResidue)
+    pLDDTcolor(r::Residue)
     pLDDTcolor(score::Real)
 
 Return the color corresponding to the pLDDT score (a measure of confidence) of a residue.
 """
-pLDDTcolor(r::PDBResidue) = pLDDTcolor(pLDDT(r))
-pLDDTcolor(a::PDBAtom) = pLDDTcolor(pLDDT(a))
+pLDDTcolor(r::Residue) = pLDDTcolor(pLDDT(r))
+pLDDTcolor(a::Atom) = pLDDTcolor(pLDDT(a))
 
-pLDDT(r::PDBResidue) = pLDDT(only(unique(a -> a.B, r.atoms)))
-pLDDT(a::PDBAtom) = parse(Float64, a.B)
+pLDDT(r::Residue) = only(unique(pLDDT, r))
+pLDDT(a::Atom) = tempfactor(a)

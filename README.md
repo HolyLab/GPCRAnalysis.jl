@@ -5,4 +5,6 @@
 [![Coverage](https://codecov.io/gh/HolyLab/GPCRAnalysis.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/HolyLab/GPCRAnalysis.jl)
 
 A suite for analyzing G-protein coupled receptors. Much of this is just a convenience wrapper and/or extension of
-[MIToS](https://github.com/diegozea/MIToS.jl), and some of this code may move there or elsewhere eventually.
+[BioStructures](https://github.com/BioJulia/BioStructures.jl) and [MIToS](https://github.com/diegozea/MIToS.jl).
+
+See NEWS.md for major changes.
