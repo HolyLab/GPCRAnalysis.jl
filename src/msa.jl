@@ -36,7 +36,7 @@ Remove all sequences from `msa` with fewer than `minres` matching residues.
 function filter_long!(msa::AbstractMultipleSequenceAlignment, minres::Real)
     # Get rid of short sequences
     nresidues = map(eachrow(msa)) do v
-        sum(!=(Residue('-')), v)
+        sum(!=(MSA.Residue('-')), v)
     end
     mask = nresidues .> minres
     filtersequences!(msa, mask)
@@ -77,6 +77,22 @@ end
 struct SequenceMapping <: AbstractVector{Int}
     seqmap::Vector{Int}
 end
+"""
+    sm = SequenceMapping([4, 5, 0, ...])
+    sm = SequenceMapping(seq::AnnotatedAlignedSequence)
+
+A `SequenceMapping` is a vector of indexes within a full sequence that map to a
+reference. Specifically, `sm[i]` is the index of the residue in the full
+sequence that maps to the `i`-th position in the reference. 0 is a placeholder
+for a position in the reference that has no mapping to the full sequence.
+
+# Example
+
+`SequenceMapping([4, 5, 0, ...])` indicates that:
+- the first position in the reference maps to the fourth residue in the full sequence,
+- the second position in the reference maps to the fifth residue in the full sequence, and
+- the third position in the reference lacks a corresponding residue in the full sequence.
+"""
 SequenceMapping(seq::AnnotatedAlignedSequence) = SequenceMapping(getsequencemapping(seq))
 
 Base.size(sm::SequenceMapping) = size(sm.seqmap)
@@ -85,11 +101,18 @@ Base.setindex!(sm::SequenceMapping, v, i::Int) = sm.seqmap[i] = v
 Base.similar(::SequenceMapping, ::Type{Int}, dims::Dims{1}) = SequenceMapping(Vector{Int}(undef, dims))
 
 # We restrict the following to `Vector` to prevent ambiguities
-Base.getindex(fullseqvec::Vector{T}, sm::SequenceMapping) where T = any(iszero, sm.seqmap) ?
-    Union{T,Nothing}[i == 0 ? nothing : fullseqvec[i] for i in sm.seqmap] :
-    T[fullseqvec[i] for i in sm.seqmap]
+Base.getindex(fullseqvec::Vector{T}, sm::SequenceMapping) where T =
+    Union{T,Nothing}[i == 0 ? nothing : fullseqvec[i] for i in sm.seqmap]
+
+Base.getindex(fullseq::Chain, sm::SequenceMapping) = getindex(collectresidues(fullseq), sm)
+Base.getindex(fullseq::Model, sm::SequenceMapping) = getindex(only(fullseq), sm)
+Base.getindex(fullseq::MolecularStructure, sm::SequenceMapping) = getindex(only(fullseq), sm)
 
 function Base.setindex!(fullseqvec::Vector, colvalues::AbstractVector, sm::SequenceMapping)
-    idxnz = sm.seqmap .> 0
-    fullseqvec[sm.seqmap[idxnz]] = colvalues[idxnz]
+    eachindex(colvalues) === eachindex(sm) || throw(DimensionMismatch("`colvalues` and `sm` must have the same indices"))
+    for (v, i) in zip(colvalues, sm.seqmap)
+        i == 0 && continue
+        fullseqvec[i] = v
+    end
+    return fullseqvec
 end

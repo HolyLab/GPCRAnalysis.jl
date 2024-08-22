@@ -25,43 +25,47 @@ function parse_tma(filename)
         lines = lines[idx+1:end]
     end
     length(lines) == 3 || error("expecting 3 lines, got $(length(lines))")
-    seq1 = [Residue(c) for c in lines[1]]
-    seq2 = [Residue(c) for c in lines[3]]
+    seq1 = [MSA.Residue(c) for c in lines[1]]
+    seq2 = [MSA.Residue(c) for c in lines[3]]
     quality = [c for c in lines[2]]
     append!(quality, fill('-', length(seq1) - length(quality)))
     return seq1, seq2, quality
 end
 
 const alignsentinel = -1
-function MapAlign(s::AbstractVector{PDBResidue}, a::AbstractVector{Residue}, quality)
+function MapAlign(s::ChainLike, a::AbstractVector{MSA.Residue}, quality)
     s2a, a2s = fill(alignsentinel, length(s)), Int[]  # we only retain the high-quality matches
+    sj, state = iterate(s)
     j = 0
     for (r, q) in zip(a, quality)
-        r == Residue('-') && continue
+        r == MSA.Residue('-') && continue
         j += 1
-        r == three2residue(s[j].id.name) || error("at position $j, residue was $(s[j].id.name) but alignment was $r")
-        q == ':' || continue
-        push!(a2s, j)
-        s2a[j] = length(a2s)
+        r == three2residue(String(resname(sj))) || error("at position $j, residue was $(resname(sj)) but alignment was $r")
+        if q == ':'
+            push!(a2s, j)
+            s2a[j] = length(a2s)
+        end
+        ret = iterate(s, state)
+        sj, state = ret === nothing ? (nothing, nothing) : ret   # if we've reached s[end], continuing should be an error
     end
     return MapAlign(s2a, a2s)
 end
 
-function StructAlign(struct1::AbstractVector{PDBResidue}, struct2::AbstractVector{PDBResidue},
-                     align1::AbstractVector{Residue},     align2::AbstractVector{Residue},
+function StructAlign(struct1::ChainLike, struct2::ChainLike,
+                     align1::AbstractVector{MSA.Residue}, align2::AbstractVector{MSA.Residue},
                      quality)
     StructAlign(MapAlign(struct1, align1, quality), MapAlign(struct2, align2, quality))
 end
 
 """
-    StructAlign(struct1::AbstractVector{PDBResidue}, struct2::AbstractVector{PDBResidue}, filename::AbstractString)
+    StructAlign(struct1::ChainLike, struct2::ChainLike, filename::AbstractString)
 
 Create a structure-based alignment between `struct1` and `struct2`. `filename` is the name of the TM-align "results" file
 (e.g., https://zhanggroup.org//TM-align/example/873772.html).
 
 See also [`residueindex`](@ref).
 """
-StructAlign(struct1::AbstractVector{PDBResidue}, struct2::AbstractVector{PDBResidue}, filename::AbstractString) =
+StructAlign(struct1::ChainLike, struct2::ChainLike, filename::AbstractString) =
     StructAlign(struct1, struct2, parse_tma(filename)...)
 
 """

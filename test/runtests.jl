@@ -1,7 +1,8 @@
 using GPCRAnalysis
-using MIToS
-using MIToS.MSA
-using MIToS.PDB
+using MIToS: MSA, Pfam
+using MIToS.MSA: @res_str, three2residue, coverage, GappedAlphabet, filtersequences!, percentsimilarity,
+                 nsequences, sequencenames, getsequencemapping
+using BioStructures
 using GaussianMixtureAlignment
 using InvertedIndices
 using Statistics
@@ -56,9 +57,9 @@ using Test
     @testset "MSA" begin
         # The test file is copied from MIToS/test/data, with gratitude
         pf09645_sto = "PF09645_full.stockholm"
-        msa = MIToS.MSA.read_file(pf09645_sto, MIToS.Pfam.Stockholm)
-        @test MIToS.MSA.nsequences(filter_species!(deepcopy(msa), "ATV")) == 1
-        @test MIToS.MSA.nsequences(filter_long!(deepcopy(msa), 70)) == 3
+        msa = MSA.read_file(pf09645_sto, Pfam.Stockholm)
+        @test MSA.nsequences(filter_species!(deepcopy(msa), "ATV")) == 1
+        @test MSA.nsequences(filter_long!(deepcopy(msa), 70)) == 3
 
         idx = SequenceMapping([0, 4, 5, 0])
         seqvals = fill(NaN, 9)
@@ -80,7 +81,7 @@ using Test
 
         @test AccessionCode(msa, MSACode("Y070_ATV/2-70")) == AccessionCode("Q3V4T1")
         @test MSACode(msa, AccessionCode("Q3V4T1")) == MSACode("Y070_ATV/2-70")
-        @test msa[MSACode("Y070_ATV/2-70")][8] == msa[AccessionCode("Q3V4T1")][8] == Residue('V')
+        @test msa[MSACode("Y070_ATV/2-70")][8] == msa[AccessionCode("Q3V4T1")][8] == MSA.Residue('V')
     end
     @testset "ChimeraX" begin
         tmpfile = tempname() * ".cxc"
@@ -92,11 +93,11 @@ using Test
         @test occursin("show #2 :11", script)
         @test occursin("transparency #1-2 80 target c", script)
         @test occursin("matchmaker #2-2 to #1", script)
-        dot = GPCRAnalysis.marker(2, Coordinates(5, 4, 3), 0.5, "blue")
+        dot = GPCRAnalysis.marker(2, [5, 4, 3], 0.5, "blue")
         chimerax_script(tmpfile, ["ABCD.pdb", "EFGH.pdb"], [[5, 10, 15], [7, 11]]; align=false, extras=[dot])
         script = read(tmpfile, String)
         @test !occursin("matchmaker #2-2 to #1", script)
-        @test occursin("marker #2 position 5.0,4.0,3.0 radius 0.5 color blue", script)
+        @test occursin("marker #2 position 5,4,3 radius 0.5 color blue", script)
         rm(tmpfile)
     end
     @testset "Needleman-Wunsch" begin
@@ -137,7 +138,7 @@ using Test
         D = [1 0 1 2 3; 3 2 1 0 1; 4 3 2 1 0; 5 4 3 2 1]
         @test align_nw(D, gapcosts) == [(1, 2), (2, 3), (3, 4), (4, 5)]
 
-        opsd = read_file("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd = getchain("AF-P15409-F1-model_v4.pdb")
         opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
         @test align_ranges(opsd, opsd, opsd_tms) == opsd_tms
 
@@ -153,8 +154,8 @@ using Test
         testscore(S, P, D, gapcosts)
     end
     @testset "Pocket residues and features" begin
-        opsd = read_file("AF-P15409-F1-model_v4.pdb", PDBFile)
-        opsdr = [three2residue(r.id.name) for r in opsd]
+        opsd = getchain("AF-P15409-F1-model_v4.pdb")
+        opsdr = [three2residue(String(resname(r))) for r in opsd]
         # These are not quite accurate, from https://www.uniprot.org/uniprotkb/P15409/entry#subcellular_location
         # the actual answer is
         #   opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
@@ -167,13 +168,13 @@ using Test
                     only(findall_subseq(res"AEKE", opsdr)):only(findall_subseq(res"YIFT", opsdr))+3,
                     only(findall_subseq(res"PIFM", opsdr)):only(findall_subseq(res"YIML", opsdr))+3,
         ]
-        opsd = align_to_membrane(opsd, opsd_tms)
+        applytransform!(opsd, align_to_membrane(opsd, opsd_tms))
         # Check the alignment
         leaflet_e, leaflet_i = GPCRAnalysis.collect_leaflet_residues(opsd, opsd_tms, true)
-        ce = reduce(vcat, [coordinatesmatrix(r) for r in leaflet_e])
-        ci = reduce(vcat, [coordinatesmatrix(r) for r in leaflet_i])
-        ze = median(ce[:,3])
-        zi = median(ci[:,3])
+        ce = reduce(hcat, [coordarray(r) for r in leaflet_e])
+        ci = reduce(hcat, [coordarray(r) for r in leaflet_i])
+        ze = median(ce[3,:])
+        zi = median(ci[3,:])
         @test ze > zi    # extracellular is positive
         @test abs(ze + zi) < 1e-6 * (ze - zi) # center of membrane is at z=0
 
@@ -277,7 +278,7 @@ using Test
         @test all(abs.(wF*ones(3)) .< 1e-7)   # gradient is zero at the minimum even under re-tuning
 
         interactions = [(:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1, (:Donor, :Acceptor) => -1]  # drop the ionic
-        opsd = read_file("AF-P15409-F1-model_v4.pdb", PDBFile)
+        opsd = getchain("AF-P15409-F1-model_v4.pdb")
         opsd_tms = [37:61, 74:96, 111:133, 153:173, 203:224, 253:274, 287:308]
         tm_res = inward_tm_residues(opsd, opsd_tms)
         tm_idxs = reduce(vcat, [tm[idx] for (tm, idx) in zip(opsd_tms, tm_res)])
@@ -328,7 +329,7 @@ using Test
                 absfn = joinpath(dir, fn)
                 @test try_download_alphafold(uname, absfn; version=v) == absfn
                 @test isfile(absfn)
-                @test getchain(absfn) isa AbstractVector{MIToS.PDB.PDBResidue}
+                @test getchain(absfn) isa GPCRAnalysis.ChainLike
                 @test only(alphafoldfiles(dir)) == fn
             end
         end
@@ -340,7 +341,7 @@ using Test
                 if !isfile(pfampath)
                     Pfam.downloadpfam("PF03402"; filename=pfampath)
                 end
-                msa = MIToS.MSA.read_file(pfampath, MSA.Stockholm, generatemapping=true, useidcoordinates=true)
+                msa = MSA.read_file(pfampath, MSA.Stockholm, generatemapping=true, useidcoordinates=true)
                 filter_species!(msa, "MOUSE")
                 # Make small enough for a decent download test
                 filtersequences!(msa, coverage(msa) .>= 0.9)
@@ -364,18 +365,20 @@ using Test
                 @test @inferred(pLDDTcolor(first(c1))) isa AbstractRGB
                 conserved_residues = c1[SequenceMapping(getsequencemapping(msa, 1))[conserved_cols]]
                 badidx = findall(==(nothing), conserved_residues)
-                conserved_residues = convert(Vector{PDBResidue}, conserved_residues[Not(badidx)])
+                conserved_residues = convert(Vector{Residue}, conserved_residues[Not(badidx)])
                 conserved_cols = conserved_cols[Not(badidx)]
                 sm = SequenceMapping(getsequencemapping(msa, 2))
-                c2a = align(conserved_residues, c2, sm[conserved_cols])
-                @test rmsd(conserved_residues, c2a[sm[conserved_cols]]; superimposed=true) < rmsd(conserved_residues, c2[sm[conserved_cols]]; superimposed=true)
-                mc = mapclosest(c1, c2a)
+                c2a = applytransform!(copy(c2), align(conserved_residues, c2, sm[conserved_cols]))
+                @test rmsd(conserved_residues, skipnothing(c2a[sm[conserved_cols]]); superimpose=false) <
+                      rmsd(conserved_residues, skipnothing(c2[sm[conserved_cols]]); superimpose=false)
+                mc = map_closest(c1, c2a)
+                @test align_closest(c1, c2a) isa Transformation
 
                 cloc = chargelocations(c1)
                 lpos = positive_locations(cloc)
-                @test !isempty(lpos) && all(item -> isa(item, Coordinates), lpos)
+                @test !isempty(lpos) && all(item -> isa(item, AbstractVector), lpos)
                 lneg = negative_locations(cloc)
-                @test !isempty(lneg) && all(item -> isa(item, Coordinates), lneg)
+                @test !isempty(lneg) && all(item -> isa(item, AbstractVector), lneg)
                 @test isempty(lpos ∩ lneg)
 
                 # Choose a sufficiently-divergent pair that structural alignment is nontrivial
@@ -401,8 +404,8 @@ using Test
                 smref = smref[keep]
                 conserved_residues = cref[smref]
                 smcmp = SequenceMapping(getsequencemapping(msa, idxcmp))
-                ccmpa = align(conserved_residues, ccmp, smcmp[conserved_cols])
-                mc = mapclosest(cref, ccmpa)
+                ccmpa = applytransform!(copy(ccmp), align(conserved_residues, ccmp, smcmp[conserved_cols]))
+                mc = map_closest(cref, ccmpa)
                 idxclose = first.(filter(item -> item[2] < 5.0, mc))   # TMAlign scores those closer than 5Å as a match
                 n = 0; for i in Iterators.drop(eachindex(idxclose), 1)
                      n += idxclose[i] < idxclose[i-1]
@@ -425,5 +428,3 @@ using Test
         end
     end
 end
-
-include("deprecated.jl")
