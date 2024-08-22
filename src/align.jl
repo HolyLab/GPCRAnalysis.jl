@@ -23,13 +23,56 @@ function align(fixedpos::AbstractMatrix{Float64}, moving::StructureLike, sm::Seq
 end
 align(fixed, moving::StructureLike, sm::SequenceMapping; kwargs...) = align(residue_centroid_matrix(fixed), moving, sm; kwargs...)
 
-function mapclosest(mapto, mapfrom)
+"""
+    mapping = map_closest(mapto::StructureLike, mapfrom::StructureLike)
+
+Return a vector `mapping[i] = (j, distij)`, matching the `i`th residue
+in `mapto` to the `j`th residue in `mapfrom` and reporting the
+distance between them. The mapping minimizes the sum of distances.
+`mapto` and `mapfrom` must already be aligned for this to be meaningful.
+
+If `mapfrom` is shorter than `mapto`, some `j`s will be 0, indicating
+a skipped residue in `mapto`.
+"""
+function map_closest(mapto::StructureLike, mapfrom::StructureLike)
     refcenters = residue_centroid_matrix(mapto)
     seqcenters = residue_centroid_matrix(mapfrom)
+    return map_closest(refcenters, seqcenters)
+end
+
+function map_closest(refcenters::AbstractMatrix, seqcenters::AbstractMatrix)
     D = pairwise(Euclidean(), refcenters, seqcenters; dims=2)
     assignment, _ = hungarian(D)
     fillval = convert(eltype(D), NaN)
     return collect(zip(assignment, [j == 0 ? fillval : D[i, j] for (i, j) in enumerate(assignment)]))
+end
+
+"""
+    tform = align_closest(mapto::StructLike, mapfrom::StructLike; Dthresh=5)
+    tform = align_closest(coordsto, coordsfrom; Dthresh=5)
+
+Return the rigid transformation best aligning `mapfrom` to `mapto`. The transformation is computed from
+residues matched by `map_closest`, using only residues closer than `Dthresh`.
+
+Because the mapping is determined by distance, this can only "tweak" an already-close alignment.
+"""
+align_closest(mapto, mapfrom; kwargs...) = align_closest(residue_centroid_matrix(mapto), mapfrom; kwargs...)
+align_closest(coordsto::AbstractMatrix, mapfrom; kwargs...) = align_closest(coordsto, residue_centroid_matrix(mapfrom); kwargs...)
+align_closest(coordsto::AbstractMatrix, coordsfrom::AbstractMatrix; kwargs...) =
+    align_closest(coordsto, coordsfrom, map_closest(coordsto, coordsfrom); kwargs...)
+
+align_closest(mapto, mapfrom, mapping; kwargs...) = align_closest(residue_centroid_matrix(mapto), mapfrom, mapping; kwargs...)
+align_closest(coordsto::AbstractMatrix, mapfrom, mapping; kwargs...) =
+    align_closest(coordsto, residue_centroid_matrix(mapfrom), mapping; kwargs...)
+function align_closest(coordsto::AbstractMatrix, coordsfrom::AbstractMatrix, mapping; Dthresh=5)
+    toidx, fromidx = Int[], Int[]
+    for (i, (j, d)) in pairs(mapping)
+        j == 0 && continue
+        d > Dthresh && continue
+        push!(toidx, i)
+        push!(fromidx, j)
+    end
+    return Transformation(coordsto[:,toidx], coordsfrom[:,fromidx], toidx, fromidx)
 end
 
 ## Align to membrane

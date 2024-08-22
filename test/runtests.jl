@@ -371,7 +371,8 @@ using Test
                 c2a = applytransform!(copy(c2), align(conserved_residues, c2, sm[conserved_cols]))
                 @test rmsd(conserved_residues, skipnothing(c2a[sm[conserved_cols]]); superimpose=false) <
                       rmsd(conserved_residues, skipnothing(c2[sm[conserved_cols]]); superimpose=false)
-                mc = mapclosest(c1, c2a)
+                mc = map_closest(c1, c2a)
+                @test align_closest(c1, c2a) isa Transformation
 
                 cloc = chargelocations(c1)
                 lpos = positive_locations(cloc)
@@ -404,7 +405,7 @@ using Test
                 conserved_residues = cref[smref]
                 smcmp = SequenceMapping(getsequencemapping(msa, idxcmp))
                 ccmpa = applytransform!(copy(ccmp), align(conserved_residues, ccmp, smcmp[conserved_cols]))
-                mc = mapclosest(cref, ccmpa)
+                mc = map_closest(cref, ccmpa)
                 idxclose = first.(filter(item -> item[2] < 5.0, mc))   # TMAlign scores those closer than 5Å as a match
                 n = 0; for i in Iterators.drop(eachindex(idxclose), 1)
                      n += idxclose[i] < idxclose[i-1]

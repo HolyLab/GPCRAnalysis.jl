@@ -45,10 +45,10 @@ export SequenceMapping, AccessionCode, MSACode, NWGapCosts
 export species, uniprotX, query_uniprot_accession, query_ebi_proteins, query_ncbi
 export try_download_alphafold, query_alphafold_latest, download_alphafolds, alphafoldfile, alphafoldfiles, getchain,
        findall_subseq, pLDDT, pLDDTcolor
-export align_to_axes, align_to_membrane, align_nw, align_ranges
+export align_to_axes, align_to_membrane, align_nw, align_ranges, map_closest, align_closest
 export filter_species!, filter_long!, sortperm_msa, chimerax_script
 export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, alphacarbon_coordinates,
-       alphacarbon_coordinates_matrix, mapclosest, chargelocations, positive_locations, negative_locations
+       alphacarbon_coordinates_matrix, chargelocations, positive_locations, negative_locations
 export StructAlign, residueindex, ismapped, skipnothing
 export BWScheme, lookupbw
 export aa_properties, aa_properties_zscored
