@@ -40,9 +40,12 @@ end
 """
     getchain(filename::AbstractString; model=1, chain="A")
 
-Read a PDB file `filename` and extract the specified chain.
+Read a PDB or mmCIF file `filename` and extract the specified chain.
 """
-getchain(filename::AbstractString; model=1, chain="A") = read(filename, PDBFormat)[model][chain]
+getchain(filename::AbstractString; model=1, chain="A") =
+    endswith(filename, ".pdb") ? read(filename, PDBFormat)[model][chain] :
+    endswith(filename, ".cif") ? read(filename, MMCIFFormat)[model][chain] :
+    throw(ArgumentError("Unknown file format"))
 
 function validate_seq_residues(seq::AnnotatedAlignedSequence, chain)
     for (i, r) in zip(getsequencemapping(seq), seq)
