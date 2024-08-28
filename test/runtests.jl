@@ -296,6 +296,18 @@ using Test
     if !isdefined(@__MODULE__, :skip_download) || !skip_download
         @testset "Uniprot" begin
             @test query_uniprot_accession("T2R38_MOUSE") == "Q7TQA6"
+
+            jobID = GPCRAnalysis.map_uniprot_submit(["ENSMUSG00000067064", "ENSMUSG00000057464"], "Ensembl")
+            tstart = time()
+            sleep(1)
+            status = false
+            while status != true && time() < tstart + 20
+                sleep(1)
+                status = GPCRAnalysis.map_uniprot_status(jobID)
+            end
+            results = GPCRAnalysis.map_uniprot_retrieve(jobID)[:results]
+            resultsdict = Dict(obj["from"] => obj["to"] for obj in results)
+            @test resultsdict["ENSMUSG00000067064"] == "Q8VGU4"
         end
 
         @testset "EBI and NCBI" begin
