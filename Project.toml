@@ -35,12 +35,12 @@ GPCRAnalysisJuMPExt = ["JuMP", "HiGHS"]
 
 [compat]
 BioStructures = "4.2"
-ColorTypes = "0.11"
+ColorTypes = "0.11, 0.12"
 Distances = "0.10"
 Downloads = "1"
 FixedPointNumbers = "0.8"
 GZip = "0.6"
-GaussianMixtureAlignment = "0.2.2"
+GaussianMixtureAlignment = "0.2.2, 0.3"
 HTTP = "1"
 HiGHS = "1"
 Hungarian = "0.6, 0.7"
