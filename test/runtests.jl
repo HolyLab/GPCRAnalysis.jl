@@ -372,6 +372,9 @@ using Test
                 conserved_cols = findall(msaentropies .< 0.5)
 
                 download_alphafolds(msa; dirname=path)
+                nfiles = length(readdir(path))
+                download_alphafolds(["K7N701", "G3UY47"]; dirname=path)
+                @test length(readdir(path)) == nfiles + 1
                 msacode2structfile = alphafoldfiles(msa, path)
                 afnbyidx(i) = getchain(joinpath(path, msacode2structfile[MSACode(sequencenames(msa)[i])]))
 
