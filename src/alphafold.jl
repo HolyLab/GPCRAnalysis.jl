@@ -76,7 +76,7 @@ end
 Query the [AlphaFold](https://alphafold.com/) API for the latest structure of `uniprotXname`.
 """
 function query_alphafold_latest(uniprotXname)
-    resp = HTTP.get("https://alphafold.com/api/prediction/$uniprotXname")
+    resp = HTTP.get("https://alphafold.com/api/prediction/$uniprotXname"; status_exception = false)
     if resp.status == 200
         j = JSON3.read(String(resp.body))[1]
         return j["pdbUrl"]
@@ -111,9 +111,13 @@ end
 
 """
     download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd())
+    download_alphafolds(ids; dirname=pwd())
 
 Download all available [AlphaFold](https://alphafold.com/) structures for the sequences in `msa`.
 Missing entries are silently skipped.
+
+If a `AbstractMultipleSequenceAlignment` is provided, the downloaded PDB file is checked to ensure that
+the residues in the MSA sequence match those in the PDB file. If they do not match, the PDB file is removed.
 """
 function download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd(), maxversion=nothing, kwargs...)
     maxversion === nothing || @warn "`download_alphafolds`: `maxversion` kwarg has no effect and is deprecated" maxlog=1
@@ -129,6 +133,18 @@ function download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd
         if !validate_seq_residues(getsequence(msa, name), getchain(path))
             @warn "Residues in $path do not match those in the sequence $name, removing PDB file"
             rm(path)
+        end
+    end
+end
+
+function download_alphafolds(ids; dirname=pwd(), kwargs...)
+    @showprogress 1 "Downloading AlphaFold files..." for uname in ids
+        url = query_alphafold_latest(uname)
+        url === nothing && continue
+        fn = split(url, '/')[end]
+        path = joinpath(dirname, fn)
+        if !isfile(path)
+            Downloads.download(url, path)
         end
     end
 end
