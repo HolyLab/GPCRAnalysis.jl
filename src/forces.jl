@@ -73,12 +73,23 @@ forcecomponents(seq, interactions::InteractionList, residueindexes=eachindex(seq
     forcecomponents(collectresidues(seq), interactions, residueindexes; kwargs...)
 
 function forcecomponents(mgmms::AbstractVector{<:IsotropicMultiGMM{N}}, interactions::InteractionList, residueindexes=eachindex(mgmms)) where N
-    GaussianMixtureAlignment.validate_interactions(Dict(interactions)) || throw(ArgumentError("interactions must appear in only one order, got $interactions"))
+    interactionsdict = Dict(interactions)
+    GaussianMixtureAlignment.validate_interactions(interactionsdict) || throw(ArgumentError("interactions must appear in only one order, got $interactions"))
     # We don't support (:Ionic, x) where x != :Ionic
     for interaction in interactions
         key1, key2 = getfeatures(interaction)
         if (key1 === :Ionic && key2 !== :Ionic) || (key1 !== :Ionic && key2 === :Ionic)
             throw(ArgumentError("(:Ionic, x) is not supported unless x=:Ionic, got $interaction"))
+        end
+    end
+    cionic = get(interactionsdict, (:Ionic, :Ionic), nothing)
+    if cionic !== nothing
+        # If (:Ionic, :Ionic) is present, the code below will handle the signs. But we need to ensure consistency with other interactions
+        for (key, sprod) in ((:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1, (:Donor, :Acceptor) => -1)
+            c = get(interactionsdict, key, nothing)
+            if c !== nothing
+                sign(cionic) * sign(c) != sprod && throw(ArgumentError("(:Ionic, :Ionic) is not sign-compatible with $key"))
+            end
         end
     end
     forces = [zeros(N, eachindex(interactions)) for _ in residueindexes]

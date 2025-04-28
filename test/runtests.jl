@@ -237,6 +237,8 @@ using Test
         w = optimize_weights(forces)
         @test all(>=(0), w)
         @test sum(w) ≈ 1 atol=1e-6
+        badinteractions = [(:Steric, :Steric) => 1, (:Hydrophobe, :Hydrophobe) => -1, (:Ionic, :Ionic) => -1]
+        @test_throws "is not sign-compatible" forcecomponents([mgmmx, mgmmy], badinteractions)
         weighted_interactions = [key => w0*wi for ((key, w0), wi) in zip(interactions, w)]
         wforces = forcecomponents([mgmmx, mgmmy], weighted_interactions)
         @test all(f .* w' ≈ wf for (f, wf) in zip(forces, wforces))
