@@ -64,6 +64,9 @@ julia> uniprotX("Q8VGW6_MOUSE/31-308")
 ```
 """
 function uniprotX(name::AbstractString)::AbstractString
+    if startswith(name, "tr|") || startswith(name, "sp|")
+        name = name[4:end]
+    end
     m = match(rex_uniprotX_Swiss, name)
     m !== nothing && return m.captures[1]
     m = match(rex_uniprot_accession, name)
@@ -101,7 +104,7 @@ function query_uniprot_accession(id)
 end
 
 """
-    jobID = GPCRAnalysis.map_uniprot_submit(ids, from, to="UniProtKB")
+    jobID = GPCRAnalysis.map_uniprot_submit(ids, from="UniProtKB_AC-ID", to="UniProtKB")
 
 Submit a list of `ids` to the Uniprot ID mapping service, to convert from ID convention `from` to `to`.
 The jobID can be used to check the status (`map_uniprot_status`) and retrieve the results (`map_uniprot_retrieve`).
@@ -111,24 +114,24 @@ The jobID can be used to check the status (`map_uniprot_status`) and retrieve th
 julia> jobID = GPCRAnalysis.map_uniprot_submit(["ENSMUSG00000067064", "ENSMUSG00000057464"], "Ensembl");
 ```
 """
-function map_uniprot_submit(ids::AbstractString, from::AbstractString, to::AbstractString="UniProtKB")
+function map_uniprot_submit(ids::AbstractString, from::AbstractString="UniProtKB_AC-ID", to::AbstractString="UniProtKB")
     resp = HTTP.post("https://rest.uniprot.org/idmapping/run", [],
-                     Dict("from" => from, "to" => "UniProtKB", "ids" => ids))
+                     Dict("from" => from, "to" => to, "ids" => ids))
     if resp.status == 200
         return JSON3.read(String(resp.body))["jobId"]
     end
     return nothing
 end
-map_uniprot_submit(ids::AbstractVector, from::AbstractString) = map_uniprot_submit(join(ids, ','), from)
+map_uniprot_submit(ids::AbstractVector, args...) = map_uniprot_submit(join(ids, ','), args...)
 
 """
-    status = GPCRAnalysis.map_uniprot_status(jobId)
+    status = GPCRAnalysis.map_uniprot_status(jobID)
 
 Check the status of a Uniprot ID mapping job. Returns `true` if the results are
 ready. Otherwise, returns the status object.
 """
-function map_uniprot_status(jobId)
-    resp = HTTP.get("https://rest.uniprot.org/idmapping/status/$jobId", ["Accept" => "application/json"])
+function map_uniprot_status(jobID)
+    resp = HTTP.get("https://rest.uniprot.org/idmapping/status/$jobID", ["Accept" => "application/json"]; decompress = true)
     if resp.status == 200
         status = JSON3.read(String(HTTP.decode(resp)))
         haskey(status, "results") && return true
@@ -138,12 +141,12 @@ function map_uniprot_status(jobId)
 end
 
 """
-    result = GPCRAnalysis.map_uniprot_retrieve(jobId)
+    result = GPCRAnalysis.map_uniprot_retrieve(jobID)
 
 Retrieve the results of a Uniprot ID mapping job.
 """
-function map_uniprot_retrieve(jobId)
-    resp = HTTP.get("https://rest.uniprot.org/idmapping/stream/$jobId", ["Accept" => "application/json"])
+function map_uniprot_retrieve(jobID)
+    resp = HTTP.get("https://rest.uniprot.org/idmapping/stream/$jobID", ["Accept" => "application/json"]; decompress = true)
     if resp.status == 200
         return JSON3.read(String(HTTP.decode(resp)))
     end
