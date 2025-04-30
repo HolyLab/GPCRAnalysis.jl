@@ -1,8 +1,9 @@
 using GPCRAnalysis
 using MIToS: MSA, Pfam
 using MIToS.MSA: @res_str, three2residue, coverage, GappedAlphabet, filtersequences!, percentsimilarity,
-                 nsequences, sequencenames, getsequencemapping
+                 nsequences, sequencenames, getsequencemapping, getcolumnmapping
 using BioStructures
+using FASTX
 using GaussianMixtureAlignment
 using InvertedIndices
 using Statistics
