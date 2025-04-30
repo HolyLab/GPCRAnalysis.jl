@@ -5,6 +5,7 @@ using Statistics
 using LinearAlgebra
 
 using BioStructures
+using FASTX
 
 using MIToS: MIToS, Pfam, MSA
 using MIToS.MSA: AbstractMultipleSequenceAlignment, AnnotatedAlignedSequence, AnnotatedMultipleSequenceAlignment,
@@ -51,7 +52,7 @@ export project_sequences, columnwise_entropy, align, residue_centroid, residue_c
        alphacarbon_coordinates_matrix, chargelocations, positive_locations, negative_locations
 export StructAlign, residueindex, ismapped, skipnothing
 export BWScheme, lookupbw
-export aa_properties, aa_properties_zscored
+export aa_properties, aa_properties_zscored, aa_properties_matrix
 export sidechaincentroid, scvector, inward_tm_residues, inward_ecl_residues
 export features_from_structure
 export forcecomponents, optimize_weights, forcedict

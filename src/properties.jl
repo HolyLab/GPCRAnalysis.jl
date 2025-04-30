@@ -1,12 +1,23 @@
+# Biophysical properties of amino acids
+
 struct AAProperties <: AbstractVector{Float64}
     charge::Float64
     hydropathy::Float64   # from https://www.sciencedirect.com/science/article/pii/0022283682905150?via%3Dihub & https://en.wikipedia.org/wiki/Amino_acid
     volume::Float64       # from http://proteinsandproteomics.org/content/free/tables_1/table08.pdf (van der Waals volume in Å³)
 end
-Base.size(v::AAProperties) = (3,)
+Base.size(::AAProperties) = (3,)
 Base.getindex(v::AAProperties, i::Int) = i == 1 ? v.charge :
                                          i == 2 ? v.hydropathy :
                                          i == 3 ? v.volume : Base.throw_boundserror(v, i)
+
+StaticArrays.SVector(v::AAProperties) = SVector{3}(v.charge, v.hydropathy, v.volume)
+
+Base.:(+)(v::AAProperties, w::AAProperties) = AAProperties(v.charge + w.charge, v.hydropathy + w.hydropathy, v.volume + w.volume)
+Base.:(-)(v::AAProperties, w::AAProperties) = AAProperties(v.charge - w.charge, v.hydropathy - w.hydropathy, v.volume - w.volume)
+Base.:(/)(v::AAProperties, r::Real) = AAProperties(v.charge / r, v.hydropathy / r, v.volume / r)
+Base.:(*)(u::AAProperties, v::Adjoint{Float64, GPCRAnalysis.AAProperties}) = SVector(u) * SVector(v')'
+Base.:(\)(L::LowerTriangular{T, StaticArraysCore.SMatrix{3, 3, T, 9}}, v::AAProperties)  where T<:Real = L \ SVector(v)
+
 const aa_properties = Dict(
     MSA.Residue('A') => AAProperties(0, 1.8, 67),
     MSA.Residue('R') => AAProperties(1, -4.5, 148),
@@ -35,4 +46,18 @@ const featμ = sum(p for (r, p) in aa_properties)/length(aa_properties)
 const featC = sum((Δp = p - featμ; Δp*Δp') for (r, p) in aa_properties)/(length(aa_properties)-1)
 const featChol = cholesky(featC)
 
-const aa_properties_zscored = Dict(r => SVector{3}(featChol.L \ (p - featμ)) for (r, p) in aa_properties)
+const aa_properties_zscored = Dict(r => (featChol.L \ (p - featμ)) for (r, p) in aa_properties)
+
+function aa_properties_matrix(msa::AbstractMultipleSequenceAlignment)
+    props = copy(aa_properties_zscored)
+    props[GAP] = zero(valtype(props))
+    props[MSA.Residue('X')] = zero(valtype(props))
+    return [props[residue] for residue in permutedims(msa)]
+end
+
+function aa_properties_matrix(seqs::AbstractVector{FASTX.FASTA.Record})
+    props = Dict(Char(r) => v for (r, v) in aa_properties_zscored)
+    props['-'] = zero(valtype(props))
+    props['X'] = zero(valtype(props))
+    return reduce(hcat, [[props[r] for r in sequence(rec)] for rec in seqs])
+end
