@@ -85,6 +85,22 @@ using Test
         @test MSACode(msa, AccessionCode("Q3V4T1")) == MSACode("Y070_ATV/2-70")
         @test msa[MSACode("Y070_ATV/2-70")][8] == msa[AccessionCode("Q3V4T1")][8] == MSA.Residue('V')
     end
+    @testset "Properties" begin
+        pf09645_sto = "PF09645_full.stockholm"
+        msa = MSA.read_file(pf09645_sto, Pfam.Stockholm)
+        X = aa_properties_matrix(msa)
+        ΔX = X .- mean(X, dims=2)
+        i = findfirst(==(14), getcolumnmapping(msa))
+        @test all(iszero, ΔX[i, :])
+        @test !all(iszero, ΔX[i-1, :])
+        seqs = FASTAReader(open("test.fasta")) do io
+            collect(io)
+        end
+        X = aa_properties_matrix(seqs)
+        ΔX = X .- mean(X, dims=2)
+        @test all(iszero, ΔX[1, :])
+        @test !all(iszero, ΔX[3, :])
+    end
     @testset "ChimeraX" begin
         tmpfile = tempname() * ".cxc"
         chimerax_script(tmpfile, ["ABCD.pdb", "EFGH.pdb"], [[5, 10, 15], [7, 11]])
