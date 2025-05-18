@@ -1,7 +1,7 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
-version = "0.5.1"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
+version = "0.5.1"
 
 [deps]
 BioStructures = "de9282ab-8554-53be-b2d6-f6c222edabfc"
@@ -46,7 +46,7 @@ GaussianMixtureAlignment = "0.2.2, 0.3"
 HTTP = "1"
 HiGHS = "1"
 Hungarian = "0.6, 0.7"
-Interpolations = "0.15"
+Interpolations = "0.15, 0.16"
 JSON3 = "1"
 JuMP = "1"
 LinearAlgebra = "1"
