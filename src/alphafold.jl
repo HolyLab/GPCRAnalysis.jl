@@ -71,15 +71,16 @@ function alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd(); 
 end
 
 """
-    url = query_alphafold_latest(uniprotXname)
+    url = query_alphafold_latest(uniprotXname; format="cif")
 
 Query the [AlphaFold](https://alphafold.com/) API for the latest structure of `uniprotXname`.
+`format` should be "cif", "pdb", or "bcif".
 """
-function query_alphafold_latest(uniprotXname)
-    resp = HTTP.get("https://alphafold.com/api/prediction/$uniprotXname"; status_exception = false)
+function query_alphafold_latest(uniprotXname; format="cif")
+    resp = HTTP.get("https://alphafold.com/api/prediction/$uniprotXname?key=AIzaSyCeurAJz7ZGjPQUtEaerUkBZ3TaBkXrY94", ["Accept" => "application/json"]; status_exception = false)
     if resp.status == 200
         j = JSON3.read(String(resp.body))[1]
-        return j["pdbUrl"]
+        return j["$(format)Url"]
     end
     return nothing
 end
