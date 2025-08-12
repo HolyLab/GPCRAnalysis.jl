@@ -97,7 +97,9 @@ function query_uniprot_accession(id)
                 read(iogz, String)
             end
             j = JSON3.read(uncompr_body)
-            return j["results"][1]["primaryAccession"]
+            results = j["results"]
+            isempty(results) && return nothing
+            return results[1]["primaryAccession"]
         end
     end
     return nothing
