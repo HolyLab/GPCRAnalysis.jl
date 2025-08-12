@@ -1,9 +1,9 @@
 # Generates 2 captures, one for the uniprotXname and the other for the version
-const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+).pdb"
+const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+).(?:pdb|cif|bcif)"
 # Make a regex for a specific uniprotXname (single capture for the version)
-regex_alphafold_pdb(uniprotXname) = Regex("AF-$uniprotXname-F1-model_v(\\d+).pdb")
+regex_alphafold_pdb(uniprotXname) = Regex("AF-$uniprotXname-F1-model_v(\\d+).(?:pdb|cif|bcif)")
 
-alphafoldfilename(uniprotXname; version=4) = "AF-$uniprotXname-F1-model_v$version.pdb"
+alphafoldfilename(uniprotXname; ext="pdb", version=4) = "AF-$uniprotXname-F1-model_v$version.$ext"
 
 """
     fns = alphafoldfile(uniprotXname, dirname=pwd(); join=false)
@@ -13,16 +13,17 @@ If `join` is `true`, then the full path is returned.
 """
 function alphafoldfile(uniprotXname::AbstractString, dirname=pwd(); join::Bool=false)
     rex = regex_alphafold_pdb(uniprotXname)
-    lv = 0
+    fnv, lv = "", 0
     for fn in readdir(dirname)
         m = match(rex, fn)
         m === nothing && continue
         v = parse(Int, only(m.captures))
-        lv = max(lv, v)
+        if v > lv
+            fnv, lv = fn, v
+        end
     end
     lv == 0 && return nothing
-    fn = alphafoldfilename(uniprotXname; version=lv)
-    return join ? joinpath(dirname, fn) : fn
+    return join ? joinpath(dirname, fnv) : fnv
 end
 
 """
@@ -33,6 +34,7 @@ If `join` is `true`, then the full paths are returned.
 """
 function alphafoldfiles(dirname=pwd(); join::Bool=false)
     latest = Dict{String,Int}()
+    latestfn = Dict{String,String}()
     for fn in readdir(dirname)
         m = match(rex_alphafold_pdbs, fn)
         m === nothing && continue
@@ -41,9 +43,10 @@ function alphafoldfiles(dirname=pwd(); join::Bool=false)
         lv = get(latest, access_code, 0)
         if v > lv
             latest[access_code] = v
+            latestfn[access_code] = fn
         end
     end
-    fns = sort!([alphafoldfilename(access_code; version=v) for (access_code, v) in latest])
+    fns = sort!(collect(values(latestfn)))
     return join ? [joinpath(dirname, fn) for fn in fns] : fns
 end
 
@@ -76,7 +79,7 @@ end
 Query the [AlphaFold](https://alphafold.com/) API for the latest structure of `uniprotXname`.
 `format` should be "cif", "pdb", or "bcif".
 """
-function query_alphafold_latest(uniprotXname; format="cif")
+function query_alphafold_latest(uniprotXname::AbstractString; format="cif")
     resp = HTTP.get("https://alphafold.com/api/prediction/$uniprotXname?key=AIzaSyCeurAJz7ZGjPQUtEaerUkBZ3TaBkXrY94", ["Accept" => "application/json"]; status_exception = false)
     if resp.status == 200
         j = JSON3.read(String(resp.body))[1]
@@ -84,6 +87,7 @@ function query_alphafold_latest(uniprotXname; format="cif")
     end
     return nothing
 end
+query_alphafold_latest(uniprotXname; kwargs...) = query_alphafold_latest(String(uniprotXname)::String; kwargs...)
 
 """
     try_download_alphafold(uniprotXname, path=alphafoldfilename(uniprotXname); version=4)
@@ -96,7 +100,8 @@ In general, a better approach is to use [`download_alphafolds`](@ref) for multip
 or [`query_alphafold_latest`](@ref) combined with `Downloads.download` for a single protein.
 """
 function try_download_alphafold(uniprotXname::AbstractString, path::AbstractString=alphafoldfilename(uniprotXname); kwargs...)
-    fn = alphafoldfilename(uniprotXname; kwargs...)
+    ext = splitext(path)[2][2:end]  # remove the leading dot
+    fn = alphafoldfilename(uniprotXname; ext, kwargs...)
     isfile(path) && return path
     try
         Downloads.download("https://alphafold.ebi.ac.uk/files/$fn", path)
