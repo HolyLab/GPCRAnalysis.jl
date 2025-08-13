@@ -25,22 +25,22 @@ function parse_tma(filename)
         lines = lines[idx+1:end]
     end
     length(lines) == 3 || error("expecting 3 lines, got $(length(lines))")
-    seq1 = [MSA.Residue(c) for c in lines[1]]
-    seq2 = [MSA.Residue(c) for c in lines[3]]
-    quality = [c for c in lines[2]]
+    seq1, seq2 = collect(lines[1]), collect(lines[3])
+    quality = collect(lines[2])
     append!(quality, fill('-', length(seq1) - length(quality)))
     return seq1, seq2, quality
 end
 
 const alignsentinel = -1
-function MapAlign(s::ChainLike, a::AbstractVector{MSA.Residue}, quality)
+
+function MapAlign(s::ChainLike, a::AbstractVector, quality)
     s2a, a2s = fill(alignsentinel, length(s)), Int[]  # we only retain the high-quality matches
     sj, state = iterate(s)
     j = 0
     for (r, q) in zip(a, quality)
-        r == MSA.Residue('-') && continue
+        isgap(r) && continue
         j += 1
-        r == three2residue(String(resname(sj))) || error("at position $j, residue was $(resname(sj)) but alignment was $r")
+        Char(r) == three2char(resname(sj)) || error("at position $j, residue was $(resname(sj)) but alignment was $r")
         if q == ':'
             push!(a2s, j)
             s2a[j] = length(a2s)
@@ -49,12 +49,6 @@ function MapAlign(s::ChainLike, a::AbstractVector{MSA.Residue}, quality)
         sj, state = ret === nothing ? (nothing, nothing) : ret   # if we've reached s[end], continuing should be an error
     end
     return MapAlign(s2a, a2s)
-end
-
-function StructAlign(struct1::ChainLike, struct2::ChainLike,
-                     align1::AbstractVector{MSA.Residue}, align2::AbstractVector{MSA.Residue},
-                     quality)
-    StructAlign(MapAlign(struct1, align1, quality), MapAlign(struct2, align2, quality))
 end
 
 """
@@ -67,6 +61,13 @@ See also [`residueindex`](@ref).
 """
 StructAlign(struct1::ChainLike, struct2::ChainLike, filename::AbstractString) =
     StructAlign(struct1, struct2, parse_tma(filename)...)
+
+function StructAlign(struct1::ChainLike, struct2::ChainLike,
+                     align1::AbstractVector{Char}, align2::AbstractVector{Char},
+                     quality)
+    StructAlign(MapAlign(struct1, align1, quality), MapAlign(struct2, align2, quality))
+end
+
 
 """
     residueindex(sa::StructAlign, nothing, idx2)

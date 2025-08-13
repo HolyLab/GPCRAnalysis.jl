@@ -32,7 +32,7 @@ function chimerax_script(scriptfilename, struct_filenames, ridxs::AbstractVector
 end
 
 """
-    chimerax_script(scriptfilename, uprot_list, msa::AnnotatedMultipleSequenceAlignment, colidxs;
+    chimerax_script(scriptfilename, uprot_list, msa, colidxs;
                     dir=pwd(), align=true, chain_transparency=80, styles=Dict{Int,String}(), extras=String[])
 
 Create a [chimerax](https://www.cgl.ucsf.edu/chimerax/) visualization script
@@ -63,17 +63,17 @@ chimerax_script("myscript.cxc", ["P15409"], msa, [i1, i2, i3])
 
 where `i1` through `i3` are column-indices in the `msa` that you'd like to view.
 """
-function chimerax_script(scriptfilename, uprot_list, msa::AnnotatedMultipleSequenceAlignment, colidxs;
+function chimerax_script(scriptfilename, uprot_list, msa, colidxs;
                          dir=pwd(), styles=Dict{Int,String}(), kwargs...)
     ridxs = [Int[] for _ in 1:length(uprot_list)]
     struct_filenames = Vector{String}(undef, length(uprot_list))
     rcstyles = Dict{Tuple{Int,Int},String}()
     afs = alphafoldfiles(msa, dir; join=true)
-    uprot2msaidx = Dict{AccessionCode,Int}(AccessionCode(msa, name) => i for (i, name) in enumerate(sequencenames(msa)))
+    uprot2msaidx = Dict{AccessionCode,Int}(AccessionCode(msa, name) => i for (i, name) in enumerate(sequencekeys(msa)))
     for (i, p) in enumerate(uprot_list)
         j = uprot2msaidx[AccessionCode(p)]
-        struct_filenames[i] = afs[MSACode(sequencenames(msa)[j])]
-        sm = getsequencemapping(msa, j)
+        struct_filenames[i] = afs[MSACode(sequencekeys(msa)[j])]
+        sm = sequenceindexes(msa, j)
         for (j, c) in enumerate(colidxs)
             ridx = sm[c]
             if iszero(ridx)

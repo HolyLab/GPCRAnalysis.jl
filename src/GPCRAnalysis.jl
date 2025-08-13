@@ -5,14 +5,8 @@ using Statistics
 using LinearAlgebra
 
 using BioStructures
+using BioStructures: amino_acid_data
 using FASTX
-
-using MIToS: MIToS, Pfam, MSA
-using MIToS.MSA: AbstractMultipleSequenceAlignment, AnnotatedAlignedSequence, AnnotatedMultipleSequenceAlignment,
-                 ReducedAlphabet, GAP, XAA
-using MIToS.MSA: getsequence, getannotsequence, getsequencemapping, getresidues, three2residue, sequencenames,
-                 filtersequences!, percentsimilarity
-using MIToS.PDB: vanderwaalsradius, ishydrophobic, isaromatic, iscationic, isanionic, ishbonddonor, ishbondacceptor
 
 using MultivariateStats
 using Distances
@@ -57,9 +51,11 @@ export sidechaincentroid, scvector, inward_tm_residues, inward_ecl_residues
 export features_from_structure
 export forcecomponents, optimize_weights, forcedict
 
+include("consts.jl")
 include("naming_conventions.jl")
-include("utils.jl")
 include("msa.jl")
+include("utils.jl")
+include("query.jl")
 include("alphafold.jl")
 include("analyze.jl")
 include("tmalign.jl")

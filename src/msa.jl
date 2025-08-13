@@ -1,8 +1,81 @@
-Base.getindex(msa::AbstractMultipleSequenceAlignment, seqname::MSACode) = getsequence(msa, seqname.name)
-Base.getindex(msa::AbstractMultipleSequenceAlignment, seqname::AccessionCode) = getsequence(msa, MSACode(msa, seqname).name)
+## Low level MSA API
+## Different MSA extensions (MIToS or BioStockholm) should implement these
+
+# It's required that `Char(res)` converts a residue to a `Char`
 
 """
-    tour = sortperm_msa(msa::AbstractMultipleSequenceAlignment)
+    idxs = sequenceindexes(msaseq)
+    idxs = sequenceindexes(msa, i)
+
+Return the corresponding index within the full sequence for each position in `msaseq`.
+`0` indicates a gap or unknown residue.
+
+The two-argument form retrieves the sequenceindexes for the `i`th sequence in `msa`.
+"""
+function sequenceindexes end
+
+"""
+    isgap(res)
+
+Return `true` if the residue `res` is a gap.
+"""
+function isgap end
+isgap(c::Char) = c == '-'
+
+"""
+    isunknown(res)
+
+Return `true` if the residue `res` is unknown.
+"""
+function isunknown end
+isunknown(c::Char) = c == 'X'
+
+"""
+    keys = sequencekeys(msa)
+
+Return the keys (sequence names) of the MSA.
+"""
+function sequencekeys end
+
+"""
+    seq = msasequence(msa, key)
+
+Return the aligned sequence corresponding to `key`.
+"""
+function msasequence end
+
+"""
+    R = residuematrix(msa)
+
+Get all residues in the MSA as a matrix, one sequence per row.
+"""
+function residuematrix end
+
+"""
+    msaview = subseqs(msa, rowindexes::AbstractVector{Int})
+    msaview = subseqs(msa, rowmask::AbstractVector{Bool})
+
+    subseqs!(msa, rowindexes::AbstractVector{Int})
+    subseqs!(msa, rowmask::AbstractVector{Bool})
+
+Construct a reduced-size `msaview`, keeping only the sequences corresponding to `rowindexes`/`rowmask`.
+"""
+function subseqs end
+function subseqs! end
+
+"""
+    pc = percent_similarity(msa)
+
+Compute the percent similarity between all pairs of sequences in `msa`.
+`pc[i, j]` is the percent similarity between sequences `i` and `j`.
+"""
+function percent_similarity end
+
+
+## MSA functions
+
+"""
+    tour = sortperm_msa(msa)
 
 Order the sequences in `msa` to minimize the "tour length" visiting each sequence once.
 The length between sequences is defined at `100 - percentsimilarity(seq1, seq2)`.
@@ -10,8 +83,8 @@ The length between sequences is defined at `100 - percentsimilarity(seq1, seq2)`
 This can be useful for graphical or alignment display by grouping obviously-similar
 sequences near one another.
 """
-function sortperm_msa(msa::AbstractMultipleSequenceAlignment)
-    sim = percentsimilarity(msa)
+function sortperm_msa(msa)
+    sim = percent_similarity(msa)
     D = 100 .- Matrix(sim)
     tour, _ = solve_tsp(D; quality_factor=80)
     pop!(tour)  # returns a closed path, but that duplicates the first/last entry
@@ -19,64 +92,33 @@ function sortperm_msa(msa::AbstractMultipleSequenceAlignment)
 end
 
 """
-    filter_species!(msa::AbstractMultipleSequenceAlignment, speciesname::AbstractString)
+    filter_species!(msa, speciesname::AbstractString)
 
 Remove all sequences from `msa` except those with [`species(sequencename)`](@ref) equal to `speciesname`.
 """
-function filter_species!(msa::AbstractMultipleSequenceAlignment, speciesname::AbstractString)
-    mask = map(x -> species(x) == speciesname, sequencenames(msa))
-    filtersequences!(msa, mask)
+function filter_species!(msa, speciesname::AbstractString)
+    mask = map(x -> species(x) == speciesname, sequencekeys(msa))
+    subseqs!(msa, mask)
 end
 
 """
-    filter_long!(msa::AbstractMultipleSequenceAlignment, minres::Real)
+    filter_long!(msa, minres::Real)
 
 Remove all sequences from `msa` with fewer than `minres` matching residues.
 """
-function filter_long!(msa::AbstractMultipleSequenceAlignment, minres::Real)
+function filter_long!(msa, minres::Real)
     # Get rid of short sequences
     nresidues = map(eachrow(msa)) do v
-        sum(!=(MSA.Residue('-')), v)
+        sum(!isgap, v)
     end
-    mask = nresidues .> minres
-    filtersequences!(msa, mask)
-end
-
-"""
-    ac = AccessionCode(msa, seqname)
-
-Return the Uniprot accession code associated with `seqname`.
-"""
-function AccessionCode(msa::AnnotatedMultipleSequenceAlignment, seqname::AbstractString)
-    AccessionCode(uniprotX(getannotsequence(msa, seqname, "AC", seqname)))
-end
-AccessionCode(msa::AnnotatedMultipleSequenceAlignment, seqname::MSACode) = AccessionCode(msa, seqname.name)
-AccessionCode(::AnnotatedMultipleSequenceAlignment, seqname::AccessionCode) = seqname
-
-function MSACode(msa::AnnotatedMultipleSequenceAlignment, accession::AbstractString)
-    seqnames = sequencenames(msa)
-    return MSACode(seqnames[findfirst(x -> AccessionCode(msa, x).name == accession, seqnames)])
-end
-MSACode(msa::AnnotatedMultipleSequenceAlignment, accession::AccessionCode) = MSACode(msa, accession.name)
-MSACode(::AnnotatedMultipleSequenceAlignment, accession::MSACode) = accession
-
-# Move this to MIToS?
-if !hasmethod(getsequencemapping, Tuple{AnnotatedAlignedSequence})
-    function MIToS.MSA.getsequencemapping(seq::AnnotatedAlignedSequence)
-        getsequencemapping(seq, sequencenames(seq)[1])
-    end
-    function MIToS.MSA.getsequencemapping(msa::Union{AnnotatedAlignedSequence,AnnotatedMultipleSequenceAlignment}, seq_id::String)
-        MIToS.MSA._str2int_mapping(getannotsequence(msa, seq_id, "SeqMap"))
-    end
-    function MIToS.MSA.getsequencemapping(msa::AnnotatedMultipleSequenceAlignment, seqid::Regex)
-        id = findfirst(str -> occursin(seqid, str), sequencenames(msa))
-        getsequencemapping(msa, id)
-    end
+    rowmask = nresidues .> minres
+    subseqs(msa, rowmask)
 end
 
 struct SequenceMapping <: AbstractVector{Int}
     seqmap::Vector{Int}
 end
+
 """
     sm = SequenceMapping([4, 5, 0, ...])
     sm = SequenceMapping(seq::AnnotatedAlignedSequence)
@@ -93,7 +135,7 @@ for a position in the reference that has no mapping to the full sequence.
 - the second position in the reference maps to the fifth residue in the full sequence, and
 - the third position in the reference lacks a corresponding residue in the full sequence.
 """
-SequenceMapping(seq::AnnotatedAlignedSequence) = SequenceMapping(getsequencemapping(seq))
+function SequenceMapping end
 
 Base.size(sm::SequenceMapping) = size(sm.seqmap)
 Base.getindex(sm::SequenceMapping, i::Int) = sm.seqmap[i]

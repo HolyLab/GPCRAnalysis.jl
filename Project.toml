@@ -1,7 +1,7 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
-version = "0.5.1"
+version = "0.6.0"
 
 [deps]
 BioStructures = "de9282ab-8554-53be-b2d6-f6c222edabfc"
@@ -17,7 +17,6 @@ Hungarian = "e91730f6-4275-51fb-a7a0-7064cfbd3b39"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-MIToS = "51bafb47-8a16-5ded-8b04-24ef4eede0b5"
 MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
 MutableConvexHulls = "948c7aac-0e5e-4631-af23-7a6bb7a17825"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
@@ -30,9 +29,11 @@ TravelingSalesmanHeuristics = "8c8f4381-2cdd-507c-846c-be2bcff6f45f"
 [weakdeps]
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
+MIToS = "51bafb47-8a16-5ded-8b04-24ef4eede0b5"
 
 [extensions]
 GPCRAnalysisJuMPExt = ["JuMP", "HiGHS"]
+GPCRAnalysisMIToSExt = "MIToS"
 
 [compat]
 BioStructures = "4.2"
@@ -65,7 +66,8 @@ julia = "1.10"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
+MIToS = "51bafb47-8a16-5ded-8b04-24ef4eede0b5"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["HiGHS", "InvertedIndices", "JuMP", "Test"]
+test = ["HiGHS", "InvertedIndices", "JuMP", "MIToS", "Test"]

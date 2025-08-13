@@ -1,41 +1,5 @@
-"""
-    result = query_ebi_proteins(id)
-
-Query the EBI Proteins API for a protein with the specified `id`, which must be the Uniprot accession code.
-You can also supply several proteins as a comma-separated list.
-
-`result` is a JSON3 object with many fields.
-"""
-function query_ebi_proteins(id; size=count(==(','), id)+1)
-    resp = HTTP.get("https://www.ebi.ac.uk/proteins/api/proteins?offset=0&size=$size&accession=$id", ["Accept" => "application/json"])
-    if resp.status == 200
-        return mktemp() do tmppath, tmpio
-            body = String(resp.body)
-            write(tmpio, body)
-            flush(tmpio)
-            uncompr_body = GZip.open(tmppath) do iogz
-                read(iogz, String)
-            end
-            return JSON3.read(uncompr_body)
-        end
-    end
-    return nothing
-end
-
-"""
-    result = query_ncbi(id)
-
-Query the NCBI API for a gene with the specified `id`, which must be the gene accession code.
-`result` is a JSON3 object with many fields.
-"""
-function query_ncbi(id)
-    resp = HTTP.get("https://api.ncbi.nlm.nih.gov/datasets/v2alpha/gene/accession/$id?table_fields=gene-id&table_fields=gene-type&table_fields=description",
-                    ["Accept" => "application/json"])
-    if resp.status == 200
-        return JSON3.read(String(resp.body))
-    end
-    return nothing
-end
+three2char(resname::AbstractString) = Char(threeletter_to_aa[String(resname)])
+three2char(r::AbstractResidue) = three2char(resname(r))
 
 """
     getchain(filename::AbstractString; model=1, chain="A")
@@ -47,11 +11,16 @@ getchain(filename::AbstractString; model=1, chain="A") =
     endswith(filename, ".cif") ? read(filename, MMCIFFormat)[model][chain] :
     throw(ArgumentError("Unknown file format"))
 
-function validate_seq_residues(seq::AnnotatedAlignedSequence, chain)
-    for (i, r) in zip(getsequencemapping(seq), seq)
-        (r == GAP || r == XAA) && continue
-        res = three2residue(String(resname(chain[i])))
-        res == r || return false
+"""
+    validate_seq_residues(msaseq, chain)
+
+Return `true` if the residues in `msaseq` match those in `chain`, ignoring gaps and unknown residues.
+"""
+function validate_seq_residues(msaseq, chain)
+    for (i, r) in zip(sequenceindexes(msaseq), msaseq)
+        (isgap(r) || isunknown(r)) && continue
+        res = three2char(String(resname(chain[i])))
+        res == Char(r) || return false
     end
     return true
 end
@@ -96,10 +65,3 @@ end
 function skipnothing(v::AbstractVector{Union{T,Nothing}}) where T
     return T[x for x in v if x !== nothing]
 end
-
-MIToS.PDB.ishydrophobic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._hydrophobic
-MIToS.PDB.isaromatic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._aromatic
-MIToS.PDB.iscationic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._cationic
-MIToS.PDB.isanionic(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in MIToS.PDB._anionic
-MIToS.PDB.ishbonddonor(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in keys(MIToS.PDB._hbond_donor)
-MIToS.PDB.ishbondacceptor(a::AbstractAtom, rname::AbstractString) = (rname, atomname(a)) in keys(MIToS.PDB._hbond_acceptor)

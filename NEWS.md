@@ -1,3 +1,8 @@
+# v0.6.0
+
+Breaking changes:
+- MIToS support has been moved to an extension. Users of the MSA functionality now need to add `import MIToS` (in addition to `using GPCRAnalysis`) to trigger loading of the extension and support for the corresponding functionality.
+
 # v0.5.0
 
 Breaking changes:
