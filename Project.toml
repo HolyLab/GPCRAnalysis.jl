@@ -1,7 +1,7 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
-authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
 version = "0.6.0"
+authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
 
 [deps]
 BioStructures = "de9282ab-8554-53be-b2d6-f6c222edabfc"
@@ -27,15 +27,18 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 TravelingSalesmanHeuristics = "8c8f4381-2cdd-507c-846c-be2bcff6f45f"
 
 [weakdeps]
+BioStockholm = "eeb925a3-6f9d-43e6-829e-e0ea03b76ecf"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 MIToS = "51bafb47-8a16-5ded-8b04-24ef4eede0b5"
 
 [extensions]
+GPCRAnalysisBioStockholmExt = "BioStockholm"
 GPCRAnalysisJuMPExt = ["JuMP", "HiGHS"]
 GPCRAnalysisMIToSExt = "MIToS"
 
 [compat]
+BioStockholm = "0.2.1"
 BioStructures = "4.2"
 ColorTypes = "0.11, 0.12"
 Distances = "0.10"
@@ -63,6 +66,7 @@ TravelingSalesmanHeuristics = "0.3"
 julia = "1.10"
 
 [extras]
+BioStockholm = "eeb925a3-6f9d-43e6-829e-e0ea03b76ecf"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
@@ -70,4 +74,4 @@ MIToS = "51bafb47-8a16-5ded-8b04-24ef4eede0b5"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["HiGHS", "InvertedIndices", "JuMP", "MIToS", "Test"]
+test = ["BioStockholm", "HiGHS", "InvertedIndices", "JuMP", "MIToS", "Test"]

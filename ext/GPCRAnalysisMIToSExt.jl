@@ -11,7 +11,7 @@ using MIToS: MIToS, Pfam, MSA
 using MIToS.MSA: AbstractMultipleSequenceAlignment, AnnotatedAlignedSequence, AnnotatedMultipleSequenceAlignment,
                  ReducedAlphabet, ResidueAlphabet, GAP, XAA
 using MIToS.MSA: getsequence, getannotsequence, getsequencemapping, getresidues, three2residue, sequencenames,
-                 filtersequences, filtersequences!, percentsimilarity
+                 filtersequences, filtersequences!, percentsimilarity, getcolumnmapping
 
 
 # Low-level API implementation
@@ -25,6 +25,7 @@ GPCRAnalysis.residuematrix(msa::AbstractMultipleSequenceAlignment) = getresidues
 GPCRAnalysis.subseqs(msa::AbstractMultipleSequenceAlignment, rowmask)  = filtersequences(msa, rowmask)
 GPCRAnalysis.subseqs!(msa::AbstractMultipleSequenceAlignment, rowmask) = filtersequences!(msa, rowmask)
 GPCRAnalysis.percent_similarity(msa::AbstractMultipleSequenceAlignment) = percentsimilarity(msa)
+GPCRAnalysis.columnindexes(msa::MSA.AbstractMultipleSequenceAlignment) = getcolumnmapping(msa)
 
 Base.getindex(msa::AbstractMultipleSequenceAlignment, seqname::MSACode) = getsequence(msa, seqname.name)
 Base.getindex(msa::AbstractMultipleSequenceAlignment, seqname::AccessionCode) = getsequence(msa, MSACode(msa, seqname).name)

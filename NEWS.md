@@ -3,6 +3,9 @@
 Breaking changes:
 - MIToS support has been moved to an extension. Users of the MSA functionality now need to add `import MIToS` (in addition to `using GPCRAnalysis`) to trigger loading of the extension and support for the corresponding functionality.
 
+New features:
+- Support for MSAs loaded with BioStockolm (which can sometimes be used instead of MIToS)
+
 # v0.5.0
 
 Breaking changes:

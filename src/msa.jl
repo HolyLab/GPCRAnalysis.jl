@@ -15,6 +15,13 @@ The two-argument form retrieves the sequenceindexes for the `i`th sequence in `m
 function sequenceindexes end
 
 """
+    idxs = columnindexes(msa)
+
+Return the indices (within the reference sequence) covered by the conserved columns of the MSA.
+"""
+function columnindexes end
+
+"""
     isgap(res)
 
 Return `true` if the residue `res` is a gap.
@@ -108,11 +115,11 @@ Remove all sequences from `msa` with fewer than `minres` matching residues.
 """
 function filter_long!(msa, minres::Real)
     # Get rid of short sequences
-    nresidues = map(eachrow(msa)) do v
-        sum(!isgap, v)
+    nresidues = map(sequencekeys(msa)) do key
+        sum(!isgap, msasequence(msa, key))
     end
     rowmask = nresidues .> minres
-    subseqs(msa, rowmask)
+    subseqs!(msa, rowmask)
 end
 
 struct SequenceMapping <: AbstractVector{Int}
