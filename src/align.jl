@@ -279,22 +279,22 @@ end
 """
     seqtms = align_ranges(seq1, seq2, seq2ranges::AbstractVector{<:AbstractUnitRange})
 
-Transfer `refranges`, a list of reside index spans in `seq2`, to `seq1`. `seq1` and
+Transfer `seq2ranges`, a list of reside index spans in `seq2`, to `seq1`. `seq1` and
 `seq2` must be spatially aligned, and the assignment is made by minimizing
 inter-chain distance subject to the constraint of preserving sequence order.
 """
-function align_ranges(seq1::ChainLike, seq2::AbstractVector{<:AbstractResidue}, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...)
-    anchoridxs = sizehint!(Int[], length(refranges)*2)
-    for r in refranges
+function align_ranges(seq1::ChainLike, seq2::AbstractVector{<:AbstractResidue}, seq2ranges::AbstractVector{<:AbstractUnitRange}; kwargs...)
+    anchoridxs = sizehint!(Int[], length(seq2ranges)*2)
+    for r in seq2ranges
         push!(anchoridxs, first(r), last(r))
     end
-    issorted(anchoridxs) || throw(ArgumentError("`refranges` must be strictly increasing spans, got $refranges"))
+    issorted(anchoridxs) || throw(ArgumentError("`seq2ranges` must be strictly increasing spans, got $seq2ranges"))
     ϕ = align_nw(seq1, seq2[anchoridxs], NWGapCosts{Float64}(open1=Inf); kwargs...)
     @assert last.(ϕ) == eachindex(anchoridxs)
     return [ϕ[i][1]:ϕ[i+1][1] for i in 1:2:length(ϕ)]
 end
-align_ranges(seq1::ChainLike, seq2::Chain, refranges::AbstractVector{<:AbstractUnitRange}; kwargs...) =
-    align_ranges(seq1, collectresidues(seq2), refranges; kwargs...)
+align_ranges(seq1::ChainLike, seq2::Chain, seq2ranges::AbstractVector{<:AbstractUnitRange}; kwargs...) =
+    align_ranges(seq1, collectresidues(seq2), seq2ranges; kwargs...)
 
 function score_nw(D::AbstractMatrix, gapcosts::NWGapCosts)
     Base.require_one_based_indexing(D)

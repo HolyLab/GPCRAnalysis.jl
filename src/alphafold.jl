@@ -32,7 +32,7 @@ end
 Return the latest version of all AlphaFold files in `dirname`.
 If `join` is `true`, then the full paths are returned.
 """
-function alphafoldfiles(dirname=pwd(); join::Bool=false)
+function alphafoldfiles(dirname::AbstractString=pwd(); join::Bool=false)
     latest = Dict{String,Int}()
     latestfn = Dict{String,String}()
     for fn in readdir(dirname)
@@ -51,11 +51,11 @@ function alphafoldfiles(dirname=pwd(); join::Bool=false)
 end
 
 """
-    msacode2structfile = alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd())
+    msacode2structfile = alphafoldfiles(msa, dirname=pwd())
 
 Return a dictionary mapping `MSACode`s to the corresponding AlphaFold structure files.
 """
-function alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd(); join::Bool=false)
+function alphafoldfiles(msa, dirname::AbstractString=pwd(); join::Bool=false)
     afs = alphafoldfiles(dirname)
     accesscode2idx = Dict{AccessionCode,Int}()
     for (i, af) in pairs(afs)
@@ -63,7 +63,7 @@ function alphafoldfiles(msa::AnnotatedMultipleSequenceAlignment, dirname=pwd(); 
         accesscode2idx[ac] = i
     end
     msacode2structfile = Dict{MSACode,String}()
-    for name in sequencenames(msa)
+    for name in sequencekeys(msa)
         ac = AccessionCode(msa, name)
         if haskey(accesscode2idx, ac)
             fn = afs[accesscode2idx[ac]]
@@ -116,18 +116,19 @@ function try_download_alphafold(uniprotXname::AbstractString, path::AbstractStri
 end
 
 """
-    download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd())
+    download_alphafolds(msa; dirname=pwd())
     download_alphafolds(ids; dirname=pwd())
 
-Download all available [AlphaFold](https://alphafold.com/) structures for the sequences in `msa`.
-Missing entries are silently skipped.
+Download all available [AlphaFold](https://alphafold.com/) structures for the
+sequences in `msa`. Missing entries are silently skipped.
 
-If a `AbstractMultipleSequenceAlignment` is provided, the downloaded PDB file is checked to ensure that
-the residues in the MSA sequence match those in the PDB file. If they do not match, the PDB file is removed.
+If an `msa` is provided, each downloaded PDB file is checked to ensure that the
+residues in the MSA sequence match those in the PDB file. If they do not match,
+the PDB file is removed.
 """
-function download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd(), maxversion=nothing, kwargs...)
+function download_alphafolds(msa; dirname=pwd(), maxversion=nothing, kwargs...)
     maxversion === nothing || @warn "`download_alphafolds`: `maxversion` kwarg has no effect and is deprecated" maxlog=1
-    @showprogress 1 "Downloading AlphaFold files..." for name in sequencenames(msa)
+    @showprogress 1 "Downloading AlphaFold files..." for name in sequencekeys(msa)
         uname = AccessionCode(msa, name)
         url = query_alphafold_latest(uname)
         url === nothing && continue
@@ -136,14 +137,14 @@ function download_alphafolds(msa::AbstractMultipleSequenceAlignment; dirname=pwd
         if !isfile(path)
             Downloads.download(url, path)
         end
-        if !validate_seq_residues(getsequence(msa, name), getchain(path))
+        if !validate_seq_residues(msasequence(msa, name), getchain(path))
             @warn "Residues in $path do not match those in the sequence $name, removing PDB file"
             rm(path)
         end
     end
 end
 
-function download_alphafolds(ids; dirname=pwd(), kwargs...)
+function download_alphafolds(ids::AbstractVector{<:AbstractString}; dirname=pwd(), kwargs...)
     @showprogress 1 "Downloading AlphaFold files..." for uname in ids
         url = query_alphafold_latest(uname)
         url === nothing && continue

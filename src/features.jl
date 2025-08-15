@@ -1,11 +1,18 @@
 const σdflt = (; hbond=1, ionic=5, aromatic=3)  # rough guesses for the interaction distance, in Å (separation is 2σ)
 
+function stdname(aname)
+    if aname == "OXT"
+        return "O"
+    end
+    return aname
+end
+
 equalvolumeradius(radii) = sum(radii.^3)^(1/3)
-equalvolumeradius(atoms::ResidueLike, r::AbstractResidue) = equalvolumeradius([vanderwaalsradius[(resname(r), atomname(a))] for a in atoms])
+equalvolumeradius(atoms::ResidueLike, r::AbstractResidue) = equalvolumeradius([vanderwaalsradius[(resname(r), stdname(atomname(a)))] for a in atoms])
 equalvolumeradius(atoms::ResidueLike, r::AbstractResidue, ::Symbol) = equalvolumeradius(atoms, r)
 
 function atomic_σfun(a, r, f::Symbol; σhbond=σdflt.hbond, σionic=σdflt.ionic, σaromatic=σdflt.aromatic)
-    aname, rname = atomname(a), resname(r)
+    aname, rname = stdname(atomname(a)), resname(r)
     f === :Steric && return vanderwaalsradius[(rname, aname)]             # repulsive
     f === :Hydrophobe && return 2 * vanderwaalsradius[(rname, aname)]     # attractive
     f ∈ (:Donor, :Acceptor) && return sqrt(σhbond^2 + vanderwaalsradius[(rname, aname)]^2)
@@ -29,12 +36,10 @@ end
 function atomic_ϕfun(a, r, f::Symbol)
     name = resname(r)
     if f === :PosIonizable
-        name == "HIS" && return 0.1
-        name == "ARG" && return 0.5  # arginine has two ionizable atoms, but the net charge is 1
-        name == "LYS" && return 1.0  # lysine has one ionizable atom
+        return aggcharges[name][atomname(a)]
     end
     if f === :NegIonizable
-        name ∈ ("ASP", "GLU") && return 0.5  # aspartate and glutamate have two
+        return abs(aggcharges[name][atomname(a)])
     end
     return 1.0
 end
@@ -45,7 +50,7 @@ function combined_ϕfun(atoms, r, f::Symbol)
         name == "HIS" && return 0.1
         name == "ARG" && return 1.0
         name == "LYS" && return 1.0
-        throw(ArgumentError("Unknown residue type: $name"))
+        return 0.0
     end
     if f === :NegIonizable
         name ∈ ("ASP", "GLU") && return 1.0
@@ -62,32 +67,39 @@ end
 
 function add_features_from_atom!(mgmm::IsotropicMultiGMM, a::AbstractAtom, r::AbstractResidue, σfun, ϕfun)
     ϕ = ϕfun(a, r, :Steric)
-    rname, acoords = resname(r), coords(a)
+    rname, aname, acoords = resname(r), atomname(a), coords(a)
+    first(aname) == 'H' && return mgmm # skip hydrogens; their properties are included in the heavy atom they are bonded to
     !iszero(ϕ) && add_feature!(mgmm, :Steric, acoords, σfun(a, r, :Steric), ϕ)
-    if ishydrophobic(a, rname)
+    z = if rname == "HIS"
+        return aname == "NE2" ? 0.1 : 0.0
+    else
+        get(aggcharges[rname], aname, 0.0f0)
+    end
+    if abs(z) < 0.3
         ϕ = ϕfun(a, r, :Hydrophobe)
         !iszero(ϕ) && add_feature!(mgmm, :Hydrophobe, acoords, σfun(a, r, :Hydrophobe), ϕ)
     end
-    if isaromatic(a, rname)
+    if isaromatic(aname, rname)
         ϕ = ϕfun(a, r, :Aromatic)
         !iszero(ϕ) && add_feature!(mgmm, :Aromatic, acoords, σfun(a, r, :Aromatic), ϕ)
     end
-    if iscationic(a, rname)
-        ϕ = ϕfun(a, r, :PosIonizable)
+    if z >= 0.3
+        ϕ = z
         !iszero(ϕ) && add_feature!(mgmm, :PosIonizable, acoords, σfun(a, r, :PosIonizable), ϕ)
     end
-    if isanionic(a, rname)
-        ϕ = ϕfun(a, r, :NegIonizable)
+    if z <= -0.3
+        ϕ = z
         !iszero(ϕ) && add_feature!(mgmm, :NegIonizable, acoords, σfun(a, r, :NegIonizable), ϕ)
     end
-    if ishbonddonor(a, rname)
+    if ishbonddonor(aname, rname)
         ϕ = ϕfun(a, r, :Donor)
         !iszero(ϕ) && add_feature!(mgmm, :Donor, acoords, σfun(a, r, :Donor), ϕ)
     end
-    if ishbondacceptor(a, rname)
+    if ishbondacceptor(aname, rname)
         ϕ = ϕfun(a, r, :Acceptor)
         !iszero(ϕ) && add_feature!(mgmm, :Acceptor, acoords, σfun(a, r, :Acceptor), ϕ)
     end
+    return mgmm
 end
 
 function add_features_from_atoms!(mgmm::IsotropicMultiGMM, key, atoms, r, σfun, ϕfun)
@@ -112,12 +124,12 @@ function add_features_from_residue!(
     else
         rname = resname(r)
         add_features_from_atoms!(mgmm, :Steric,       r, r, σfun, ϕfun)
-        add_features_from_atoms!(mgmm, :Hydrophobe,   collectatoms(r, x -> ishydrophobic(x, rname))  , r, σfun, ϕfun)
-        add_features_from_atoms!(mgmm, :Aromatic,     collectatoms(r, x -> isaromatic(x, rname))     , r, σfun, ϕfun)
-        add_features_from_atoms!(mgmm, :PosIonizable, collectatoms(r, x -> iscationic(x, rname))     , r, σfun, ϕfun)
-        add_features_from_atoms!(mgmm, :NegIonizable, collectatoms(r, x -> isanionic(x, rname))      , r, σfun, ϕfun)
-        add_features_from_atoms!(mgmm, :Donor,        collectatoms(r, x -> ishbonddonor(x, rname))   , r, σfun, ϕfun)
-        add_features_from_atoms!(mgmm, :Acceptor,     collectatoms(r, x -> ishbondacceptor(x, rname)), r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Hydrophobe,   collectatoms(r, x -> ishydrophobic(atomname(x), rname))  , r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Aromatic,     collectatoms(r, x -> isaromatic(atomname(x), rname))     , r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :PosIonizable, collectatoms(r, x -> isstdcationic(atomname(x), rname))     , r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :NegIonizable, collectatoms(r, x -> isstdanionic(atomname(x), rname))      , r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Donor,        collectatoms(r, x -> ishbonddonor(atomname(x), rname))   , r, σfun, ϕfun)
+        add_features_from_atoms!(mgmm, :Acceptor,     collectatoms(r, x -> ishbondacceptor(atomname(x), rname)), r, σfun, ϕfun)
     end
 end
 

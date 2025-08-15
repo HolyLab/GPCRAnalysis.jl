@@ -1,12 +1,12 @@
 """
-    X = project_sequences(msa::AbstractMultipleSequenceAlignment; fracvar::Real = 0.9)
+    X = project_sequences(msa; fracvar::Real = 0.9)
 
 Perform a classical multidimensional scaling analysis to project the sequences in `msa` to a space
 in which pairwise distances approximately reproduce `100 - percentsimilarity(seq1, seq2)`.
 The dimensionality is chosen to reconstruction `fracvar` of the variance.
 """
-function project_sequences(msa::AbstractMultipleSequenceAlignment; fracvar::Real = 0.9)
-    sim = percentsimilarity(msa)
+function project_sequences(msa; fracvar::Real = 0.9)
+    sim = percent_similarity(msa)
     D = 100 .- Matrix(sim)
     f = fit(MDS, D; distances=true)
     # Capture sufficient variance
@@ -16,8 +16,6 @@ function project_sequences(msa::AbstractMultipleSequenceAlignment; fracvar::Real
     X = predict(f)
     return X[1:nd, :]
 end
-
-const reduced_code = ReducedAlphabet("(AILMV)(NQST)(RHK)(DE)(FWY)CGP")
 
 function _entropy(v)
     count = countitems(v)
@@ -30,14 +28,14 @@ function _entropy(v)
 end
 
 """
-    columnwise_entropy(msa::AbstractMultipleSequenceAlignment, aacode = ReducedAlphabet("(AILMV)(NQST)(RHK)(DE)(FWY)CGP"))
+    columnwise_entropy(f, msa)
 
-Compute the entropy of each column in an MSA. Low entropy indicates high conservation.
+Compute the entropy of each column in an MSA, after applying `f` to each residue. Low entropy indicates high conservation.
 
 Unmatched entries (`'-'` residues) contribute to the entropy calculation as if they were an ordinary residue.
 """
-function columnwise_entropy(msa::AbstractMultipleSequenceAlignment, aacode=reduced_code)
-    resnum = map(r -> aacode[r], getresidues(msa))
+function columnwise_entropy(f, msa)
+    resnum = map(f, residuematrix(msa))
     return map(_entropy, eachcol(resnum))
 end
 

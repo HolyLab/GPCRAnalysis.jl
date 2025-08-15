@@ -3,9 +3,24 @@ abstract type NamingConvention end
 struct MSACode <: NamingConvention
     name::String
 end
+
+"""
+    mc = MSACode(msa, accession)
+
+Return the MSA-internal sequence name associated with `accession`.
+"""
+function MSACode end
+
 struct AccessionCode <: NamingConvention
     name::String
 end
+
+"""
+    ac = AccessionCode(msa, seqname)
+
+Return the Uniprot accession code associated with `seqname`.
+"""
+function AccessionCode end
 
 Base.String(x::NamingConvention) = x.name
 Base.convert(::Type{NC}, x::AbstractString) where NC<:NamingConvention = NC(x)  # but don't support the other direction
