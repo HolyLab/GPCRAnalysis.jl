@@ -17,10 +17,15 @@ getchain(filename::AbstractString; model=1, chain="A") =
 Return `true` if the residues in `msaseq` match those in `chain`, ignoring gaps and unknown residues.
 """
 function validate_seq_residues(msaseq, chain)
-    for (i, r) in zip(sequenceindexes(msaseq), msaseq)
-        (isgap(r) || isunknown(r)) && continue
-        res = three2char(String(resname(chain[i])))
-        res == Char(r) || return false
+    try
+        for (i, r) in zip(sequenceindexes(msaseq), msaseq)
+            (isgap(r) || isunknown(r)) && continue
+            res = three2char(String(resname(chain[i])))
+            res == Char(r) || return false
+        end
+    catch
+        @warn "Error validating sequence residues"
+        return false
     end
     return true
 end
