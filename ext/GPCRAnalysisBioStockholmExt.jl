@@ -5,15 +5,28 @@ using BioStockholm
 using BioStockholm: OrderedDict   # from OrderedCollections.jl
 
 function conscols(msa::MSA)
-    ss = msa.GC["SS_cons"]
+    ss = get(msa.GC, "SS_cons", nothing)
+    if ss === nothing
+        ss = msa.GC["seq_cons"]
+    end
     return findfirst(!=( '.'), ss):findlast(!=( '.'), ss)
 end
 
 # Low-level API implementation
 # GPCRAnalysis.sequenceindexes(msaseq::AnnotatedAlignedSequence) = getsequencemapping(msaseq)
-# GPCRAnalysis.sequenceindexes(msaseq::MSA, i::Int) = getsequencemapping(msaseq, i)
+GPCRAnalysis.sequenceindexes(msa::MSA, i::Int) = GPCRAnalysis.sequenceindexes(msa::MSA, MSACode(GPCRAnalysis.sequencekeys(msa)[i]))
+function GPCRAnalysis.sequenceindexes(msa::MSA, key::MSACode)
+    seq = GPCRAnalysis.msasequence(msa, key)
+    filled = [r ∉ ('-', '.') for r in seq]
+    start, stop = parse.(Int, match(r"/(\d+)-(\d+)$", String(key)).captures)
+    rng = start:stop
+    cf = cumsum(filled)
+    # cf[end] == length(rng) || return nothing
+    return [filled[i] ? cf[i] + start - 1 : 0 for i in eachindex(filled)]
+end
 GPCRAnalysis.sequencekeys(msa::MSA) = collect(keys(msa.seq))
-GPCRAnalysis.msasequence(msa::MSA, key) = msa.seq[key][conscols(msa)]
+GPCRAnalysis.msasequence(msa::MSA, key::MSACode) = msa.seq[String(key)][conscols(msa)]
+GPCRAnalysis.msasequence(msa::MSA, key::AbstractString) = GPCRAnalysis.msasequence(msa, MSACode(key))
 function GPCRAnalysis.residuematrix(msa::MSA)
     keepcols = conscols(msa)
     reduce(vcat, [permutedims(seq[keepcols]) for (_, seq) in msa.seq])
