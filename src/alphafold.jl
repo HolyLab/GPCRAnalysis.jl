@@ -130,7 +130,7 @@ function download_alphafolds(msa; dirname=pwd(), maxversion=nothing, kwargs...)
     maxversion === nothing || @warn "`download_alphafolds`: `maxversion` kwarg has no effect and is deprecated" maxlog=1
     @showprogress 1 "Downloading AlphaFold files..." for name in sequencekeys(msa)
         uname = AccessionCode(msa, name)
-        url = query_alphafold_latest(uname)
+        url = query_alphafold_latest(uname; kwargs...)
         url === nothing && continue
         fn = split(url, '/')[end]
         path = joinpath(dirname, fn)
@@ -138,7 +138,7 @@ function download_alphafolds(msa; dirname=pwd(), maxversion=nothing, kwargs...)
             Downloads.download(url, path)
         end
         if !validate_seq_residues(msasequence(msa, name), getchain(path))
-            @warn "Residues in $path do not match those in the sequence $name, removing PDB file"
+            @warn "Residues in $path do not match those in the sequence $name, removing structure file"
             rm(path)
         end
     end
@@ -146,7 +146,7 @@ end
 
 function download_alphafolds(ids::AbstractVector{<:AbstractString}; dirname=pwd(), kwargs...)
     @showprogress 1 "Downloading AlphaFold files..." for uname in ids
-        url = query_alphafold_latest(uname)
+        url = query_alphafold_latest(uname; kwargs...)
         url === nothing && continue
         fn = split(url, '/')[end]
         path = joinpath(dirname, fn)
