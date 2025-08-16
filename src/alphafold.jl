@@ -67,7 +67,8 @@ function alphafoldfiles(msa, dirname::AbstractString=pwd(); join::Bool=false)
         ac = AccessionCode(msa, name)
         if haskey(accesscode2idx, ac)
             fn = afs[accesscode2idx[ac]]
-            msacode2structfile[MSACode(name)] = join ? joinpath(dirname, fn) : fn
+            mc = isa(name, AbstractString) ? MSACode(name) : MSACode(msa, name)
+            msacode2structfile[mc] = join ? joinpath(dirname, fn) : fn
         end
     end
     return msacode2structfile

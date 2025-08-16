@@ -13,6 +13,7 @@ Return the corresponding index within the full sequence for each position in `ms
 The two-argument form retrieves the sequenceindexes for the `i`th sequence in `msa`.
 """
 function sequenceindexes end
+sequenceindexes(seq::AbstractString) = 1:ncodeunits(seq)
 
 """
     idxs = columnindexes(msa)
@@ -43,6 +44,7 @@ isunknown(c::Char) = c == 'X'
 Return the keys (sequence names) of the MSA.
 """
 function sequencekeys end
+sequencekeys(msa::AbstractVector{FASTX.FASTA.Record}) = eachindex(msa)
 
 """
     seq = msasequence(msa, key)
@@ -50,6 +52,7 @@ function sequencekeys end
 Return the aligned sequence corresponding to `key`.
 """
 function msasequence end
+msasequence(msa::AbstractVector{FASTX.FASTA.Record}, key::Int) = sequence(msa[key])
 
 """
     R = residuematrix(msa)
