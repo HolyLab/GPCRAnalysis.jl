@@ -5,30 +5,45 @@ using BioStockholm
 using BioStockholm: OrderedDict   # from OrderedCollections.jl
 
 function conscols(msa::MSA)
-    ss = get(msa.GC, "SS_cons", nothing)
-    if ss === nothing
-        ss = msa.GC["seq_cons"]
+    if length(msa.GR) == 1
+        # Fast-path: use the reference sequence
+        key, _ = only(msa.GR)
+        s = msa.seq[key]
+        return findall(s) do c
+            c == '-' || isuppercase(c)
+        end
     end
-    return findfirst(!=( '.'), ss):findlast(!=( '.'), ss)
+    # Slow path: check each sequence, find all that have at least one uppercase in that column
+    keep = falses(length(msa.GC["seq_cons"]))
+    for (_, s) in msa.seq
+        keep .|= isuppercase.(s)
+    end
+    return findall(keep)
 end
 
 # Low-level API implementation
-# GPCRAnalysis.sequenceindexes(msaseq::AnnotatedAlignedSequence) = getsequencemapping(msaseq)
 GPCRAnalysis.sequenceindexes(msa::MSA, i::Int) = GPCRAnalysis.sequenceindexes(msa::MSA, MSACode(GPCRAnalysis.sequencekeys(msa)[i]))
 function GPCRAnalysis.sequenceindexes(msa::MSA, key::MSACode)
-    seq = GPCRAnalysis.msasequence(msa, key)
-    filled = [r ∉ ('-', '.') for r in seq]
-    start, stop = parse.(Int, match(r"/(\d+)-(\d+)$", String(key)).captures)
-    rng = start:stop
+    # seq = GPCRAnalysis.msasequence(msa, key)
+    seq = msa.seq[String(key)]
+    offset = findfirst(!=('.'), seq)
+    filled = [r != '-' for r in seq]
     cf = cumsum(filled)
-    # cf[end] == length(rng) || return nothing
-    return [filled[i] ? cf[i] + start - 1 : 0 for i in eachindex(filled)]
+    keepcols = conscols(msa)
+    m = match(r"/(\d+)-(\d+)$", String(key))
+    if m !== nothing
+        start, stop = parse.(Int, m.captures)
+        Δ = start - offset
+        return (filled .* (cf .+ Δ))[keepcols]
+    end
+    return (filled .* cf)[keepcols]
 end
 GPCRAnalysis.sequencekeys(msa::MSA) = collect(keys(msa.seq))
 GPCRAnalysis.msasequence(msa::MSA, key::MSACode) = msa.seq[String(key)][conscols(msa)]
 GPCRAnalysis.msasequence(msa::MSA, key::AbstractString) = GPCRAnalysis.msasequence(msa, MSACode(key))
 function GPCRAnalysis.residuematrix(msa::MSA)
     keepcols = conscols(msa)
+    # keepcols = Colon()
     reduce(vcat, [permutedims(seq[keepcols]) for (_, seq) in msa.seq])
 end
 GPCRAnalysis.subseqs(msa::MSA{T}, rowmask::AbstractVector{Bool}) where T = MSA{T}(OrderedDict(pr for (pr, keep) in zip(msa.seq, rowmask) if keep), msa.GF, OrderedDict(pr for (pr, keep) in zip(msa.GS, rowmask) if keep), msa.GC, msa.GR)

@@ -37,6 +37,7 @@ const StructureLike = Union{ChainLike, Model, MolecularStructure}
 # export @res_str
 
 export SequenceMapping, AccessionCode, MSACode, NWGapCosts
+export sequenceindexes, columnindexes, isgap, isunknown, sequencekeys, msasequence, residuematrix, subseqs, subseqs!
 export species, uniprotX, query_uniprot_accession, query_ebi_proteins, query_ncbi
 export try_download_alphafold, query_alphafold_latest, download_alphafolds, alphafoldfile, alphafoldfiles, getchain,
        findall_subseq, pLDDT, pLDDTcolor

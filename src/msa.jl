@@ -79,6 +79,15 @@ Compute the percent similarity between all pairs of sequences in `msa`.
 function percent_similarity end
 
 
+# Notes on interpreting letter codes in the "GC.seq_cons" field:
+# - `.` indicates a gap
+# - uppercase single-letter amino acid codes indicate strong consensus (>60%)
+# - lowercase single-letter codes (likely interpretations):
+#   + 'a': aromatic
+#   + 'h': hydrophobic
+#   + rest unknown
+# - '+' and '-' indicate positively- and negatively-charged residues, respectively
+
 ## MSA functions
 
 """
