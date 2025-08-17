@@ -13,12 +13,16 @@ Return the corresponding index within the full sequence for each position in `ms
 The two-argument form retrieves the sequenceindexes for the `i`th sequence in `msa`.
 """
 function sequenceindexes end
-sequenceindexes(seq::AbstractString) = 1:ncodeunits(seq)
+sequenceindexes(msa::AbstractVector{FASTX.FASTA.Record}, i::Int) = sequenceindexes(msa[i])
+function sequenceindexes(seq::FASTX.FASTA.Record)
+    n = 0
+    return [isgap(c) ? 0 : (n += 1) for c in sequence(seq)]
+end
 
 """
     idxs = columnindexes(msa)
 
-Return the indices (within the reference sequence) covered by the conserved columns of the MSA.
+Return the indices of the conserved columns of the MSA.
 """
 function columnindexes end
 
@@ -60,6 +64,9 @@ msasequence(msa::AbstractVector{FASTX.FASTA.Record}, key::Int) = sequence(msa[ke
 Get all residues in the MSA as a matrix, one sequence per row.
 """
 function residuematrix end
+function residuematrix(msa::AbstractVector{FASTX.FASTA.Record})
+    reduce(vcat, [permutedims(collect(sequence(rec))) for rec in msa])
+end
 
 """
     msaview = subseqs(msa, rowindexes::AbstractVector{Int})
@@ -73,14 +80,65 @@ Construct a reduced-size `msaview`, keeping only the sequences corresponding to 
 function subseqs end
 function subseqs! end
 
+## End required API, but some can specialize other methods
+
 """
     pc = percent_similarity(msa)
+    pc = percent_similarity(f, msa)
 
 Compute the percent similarity between all pairs of sequences in `msa`.
 `pc[i, j]` is the percent similarity between sequences `i` and `j`.
+
+Optionally apply mapping function `f` to each residue before computing
+similarity.
 """
 function percent_similarity end
 
+function percent_similarity(f, msa)
+    # This mimics MIToS's implementation
+    function pctsim(v1, v2)
+        same = l = 0
+        for (a, b) in zip(v1, v2)
+            a == b == 0 && continue  # skip gaps
+            same += a == b
+            l += 1
+        end
+        return 100 * same / l
+    end
+
+    M = f.(residuematrix(msa))
+    n = size(M, 1)
+    S = zeros(Float64, n, n)
+    for i in 1:n
+        for j in i:n
+            S[i, j] = pctsim(M[i, :], M[j, :])
+            S[j, i] = S[i, j]
+        end
+    end
+    return S
+end
+percent_similarity(msa) = percent_similarity(reduced_alphabet, msa)
+
+function reduced_alphabet(r::Char)
+    if r == '-'
+        return 0
+    elseif r in ('A','I','L','M','V')
+        return 1  # hydrophobic
+    elseif r in ('N','Q','S','T')
+        return 2  # polar
+    elseif r in ('R','H','K')
+        return 3  # charged
+    elseif r in ('D','E')
+        return 4  # charged
+    elseif r in ('F','W','Y')
+        return 5  # aromatic
+    end
+    offset = findfirst(==(r), ('C','G','P'))
+    offset === nothing && throw(ArgumentError("Unknown residue '$r'"))
+    return 5 + offset  # special or unknown
+end
+
+columnwise_entropy(msa) = columnwise_entropy(reduced_alphabet, msa)
 
 # Notes on interpreting letter codes in the "GC.seq_cons" field:
 # - `.` indicates a gap

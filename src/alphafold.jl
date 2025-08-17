@@ -1,5 +1,5 @@
 # Generates 2 captures, one for the uniprotXname and the other for the version
-const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+).(?:pdb|cif|bcif)"
+const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+)(?:_[A-Z])?(?:\.(?:pdb|cif|bcif))?"
 # Make a regex for a specific uniprotXname (single capture for the version)
 regex_alphafold_pdb(uniprotXname) = Regex("AF-$uniprotXname-F1-model_v(\\d+).(?:pdb|cif|bcif)")
 
@@ -62,12 +62,13 @@ function alphafoldfiles(msa, dirname::AbstractString=pwd(); join::Bool=false)
         ac = AccessionCode(match(rex_alphafold_pdbs, af).captures[1])
         accesscode2idx[ac] = i
     end
-    msacode2structfile = Dict{MSACode,String}()
+    K = typeof(first(sequencekeys(msa)))
+    msacode2structfile = Dict{K isa AbstractString ? MSACode : K,String}()
     for name in sequencekeys(msa)
         ac = AccessionCode(msa, name)
         if haskey(accesscode2idx, ac)
             fn = afs[accesscode2idx[ac]]
-            mc = isa(name, AbstractString) ? MSACode(name) : MSACode(msa, name)
+            mc = isa(name, AbstractString) ? MSACode(name) : name
             msacode2structfile[mc] = join ? joinpath(dirname, fn) : fn
         end
     end
