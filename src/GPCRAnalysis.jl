@@ -40,7 +40,7 @@ export SequenceMapping, AccessionCode, MSACode, NWGapCosts
 export sequenceindexes, columnindexes, isgap, isunknown, sequencekeys, msasequence, residuematrix, subseqs, subseqs!
 export species, uniprotX, query_uniprot_accession, query_ebi_proteins, query_ncbi
 export try_download_alphafold, query_alphafold_latest, download_alphafolds, alphafoldfile, alphafoldfiles, getchain,
-       findall_subseq, pLDDT, pLDDTcolor
+       writechain, findall_subseq, pLDDT, pLDDTcolor
 export align_to_axes, align_to_membrane, align_nw, align_ranges, map_closest, align_closest
 export filter_species!, filter_long!, sortperm_msa, chimerax_script
 export project_sequences, columnwise_entropy, align, residue_centroid, residue_centroid_matrix, alphacarbon_coordinates,

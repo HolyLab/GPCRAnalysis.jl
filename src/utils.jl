@@ -9,7 +9,17 @@ Read a PDB or mmCIF file `filename` and extract the specified chain.
 getchain(filename::AbstractString; model=1, chain="A") =
     endswith(filename, ".pdb") ? read(filename, PDBFormat)[model][chain] :
     endswith(filename, ".cif") ? read(filename, MMCIFFormat)[model][chain] :
-    throw(ArgumentError("Unknown file format"))
+    throw(ArgumentError("Unknown format for $filename"))
+
+"""
+    writechain(filename::AbstractString, chain::ChainLike)
+
+Write the specified `chain` to a PDB or mmCIF file `filename`.
+"""
+writechain(filename::AbstractString, chain::ChainLike) =
+    endswith(filename, ".pdb") ? writepdb(filename, chain) :
+    endswith(filename, ".cif") ? writemmcif(filename, chain) :
+    throw(ArgumentError("Unknown format for $filename"))
 
 """
     validate_seq_residues(msaseq, chain)
