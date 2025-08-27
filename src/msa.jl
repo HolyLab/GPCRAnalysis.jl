@@ -13,10 +13,23 @@ Return the corresponding index within the full sequence for each position in `ms
 The two-argument form retrieves the sequenceindexes for the `i`th sequence in `msa`.
 """
 function sequenceindexes end
-sequenceindexes(msa::AbstractVector{FASTX.FASTA.Record}, i::Int) = sequenceindexes(msa[i])
-function sequenceindexes(seq::FASTX.FASTA.Record)
-    n = 0
-    return [isgap(c) ? 0 : (n += 1) for c in sequence(seq)]
+sequenceindexes(msa::AbstractVector{FASTX.FASTA.Record}, i::Int) = sequenceindexes(msa[i], columnindexes(msa))
+function sequenceindexes(seq::FASTX.FASTA.Record, keepcols::AbstractVector{Int})
+    s = collect(sequence(seq))
+    idx = findfirst(islowercase, s)
+    offset = idx === nothing ? first(keepcols) : idx
+    preambleidx = first(keepcols)
+    filled = map(eachindex(s)) do j
+        j < preambleidx || isuppercase(s[j])
+    end
+    cf = cumsum(filled)
+    m = match(r"/(\d+)-(\d+)$", identifier(seq))
+    if m !== nothing
+        start, stop = parse.(Int, m.captures)
+        Δ = start - offset
+        return (filled .* (cf .+ Δ))[keepcols]
+    end
+    return (filled .* cf)[keepcols]
 end
 
 """
@@ -25,6 +38,17 @@ end
 Return the indices of the conserved columns of the MSA.
 """
 function columnindexes end
+function columnindexes(msa::AbstractVector{FASTX.FASTA.Record})
+    # Slow path: check each sequence, find all that have at least one uppercase in that column
+    nseq = length(msa)
+    ncol = length(sequence(msa[1]))
+    keep = falses(ncol)
+    for rec in msa
+        s = collect(sequence(rec))
+        keep .|= isuppercase.(s)
+    end
+    return findall(keep)
+end
 
 """
     isgap(res)
@@ -66,7 +90,8 @@ Get all residues in the MSA as a matrix, one sequence per row.
 """
 function residuematrix end
 function residuematrix(msa::AbstractVector{FASTX.FASTA.Record})
-    reduce(vcat, [permutedims(collect(sequence(rec))) for rec in msa])
+    M = reduce(vcat, [permutedims(collect(sequence(rec))) for rec in msa])
+    return M[:, columnindexes(msa)]
 end
 
 """
@@ -80,6 +105,12 @@ Construct a reduced-size `msaview`, keeping only the sequences corresponding to 
 """
 function subseqs end
 function subseqs! end
+
+subseqs(msa::AbstractVector{FASTX.FASTA.Record}, rowmask) = msa[rowmask]
+subseqs!(msa::AbstractVector{FASTX.FASTA.Record}, rowmask::AbstractVector{Bool}) =
+    deleteat!(msa, findall(!, rowmask))
+subseqs!(msa::AbstractVector{FASTX.FASTA.Record}, rowindexes::AbstractVector{Int}) =
+    deleteat!(msa, setdiff(1:length(msa), rowindexes))
 
 ## End required API, but some can specialize other methods
 
@@ -176,6 +207,10 @@ Remove all sequences from `msa` except those with [`species(sequencename)`](@ref
 """
 function filter_species!(msa, speciesname::AbstractString)
     mask = map(x -> species(x) == speciesname, sequencekeys(msa))
+    subseqs!(msa, mask)
+end
+function filter_species!(msa::AbstractVector{FASTX.FASTA.Record}, speciesname::AbstractString)
+    mask = map(x -> species(x) == speciesname, identifier.(msa))
     subseqs!(msa, mask)
 end
 

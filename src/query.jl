@@ -8,14 +8,14 @@ formats = Dict(:json => "application/json",
                :txt => "text/plain")
 
 """
-    result = query_ebi_proteins(id)
+    result = query_ebi_proteins(id; format=:json)
 
 Query the EBI Proteins API for a protein with the specified `id`, which must be the Uniprot accession code.
 You can also supply several proteins as a comma-separated list.
 
 `result` is a JSON3 object with many fields.
 """
-function query_ebi_proteins(id; size=count(==(','), id)+1, format::Symbol=:json)
+function query_ebi_proteins(id::AbstractString; size=count(==(','), id)+1, format::Symbol=:json)
     resp = HTTP.get("https://www.ebi.ac.uk/proteins/api/proteins?offset=0&size=$size&accession=$id", ["Accept" => formats[format]])
     if resp.status == 200
         return mktemp() do tmppath, tmpio
@@ -30,6 +30,8 @@ function query_ebi_proteins(id; size=count(==(','), id)+1, format::Symbol=:json)
     end
     return nothing
 end
+query_ebi_proteins(id::AbstractVector{<:AbstractString}; kwargs...) =
+    query_ebi_proteins(join(id, ','); kwargs...)
 
 """
     result = query_ncbi(id)
