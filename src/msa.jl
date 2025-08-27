@@ -13,13 +13,42 @@ Return the corresponding index within the full sequence for each position in `ms
 The two-argument form retrieves the sequenceindexes for the `i`th sequence in `msa`.
 """
 function sequenceindexes end
+sequenceindexes(msa::AbstractVector{FASTX.FASTA.Record}, i::Int) = sequenceindexes(msa[i], columnindexes(msa))
+function sequenceindexes(seq::FASTX.FASTA.Record, keepcols::AbstractVector{Int})
+    s = collect(sequence(seq))
+    idx = findfirst(islowercase, s)
+    offset = idx === nothing ? first(keepcols) : idx
+    preambleidx = first(keepcols)
+    filled = map(eachindex(s)) do j
+        j < preambleidx || isuppercase(s[j])
+    end
+    cf = cumsum(filled)
+    m = match(r"/(\d+)-(\d+)$", identifier(seq))
+    if m !== nothing
+        start, stop = parse.(Int, m.captures)
+        Δ = start - offset
+        return (filled .* (cf .+ Δ))[keepcols]
+    end
+    return (filled .* cf)[keepcols]
+end
 
 """
     idxs = columnindexes(msa)
 
-Return the indices (within the reference sequence) covered by the conserved columns of the MSA.
+Return the indices of the conserved columns of the MSA.
 """
 function columnindexes end
+function columnindexes(msa::AbstractVector{FASTX.FASTA.Record})
+    # Slow path: check each sequence, find all that have at least one uppercase in that column
+    nseq = length(msa)
+    ncol = length(sequence(msa[1]))
+    keep = falses(ncol)
+    for rec in msa
+        s = collect(sequence(rec))
+        keep .|= isuppercase.(s)
+    end
+    return findall(keep)
+end
 
 """
     isgap(res)
@@ -28,6 +57,7 @@ Return `true` if the residue `res` is a gap.
 """
 function isgap end
 isgap(c::Char) = c == '-'
+isgap(r::Integer) = iszero(r)   # when mapped to integers, gaps are encoded as 0
 
 """
     isunknown(res)
@@ -43,6 +73,7 @@ isunknown(c::Char) = c == 'X'
 Return the keys (sequence names) of the MSA.
 """
 function sequencekeys end
+sequencekeys(msa::AbstractVector{FASTX.FASTA.Record}) = eachindex(msa)
 
 """
     seq = msasequence(msa, key)
@@ -50,6 +81,7 @@ function sequencekeys end
 Return the aligned sequence corresponding to `key`.
 """
 function msasequence end
+msasequence(msa::AbstractVector{FASTX.FASTA.Record}, key::Int) = sequence(msa[key])
 
 """
     R = residuematrix(msa)
@@ -57,6 +89,10 @@ function msasequence end
 Get all residues in the MSA as a matrix, one sequence per row.
 """
 function residuematrix end
+function residuematrix(msa::AbstractVector{FASTX.FASTA.Record})
+    M = reduce(vcat, [permutedims(collect(sequence(rec))) for rec in msa])
+    return M[:, columnindexes(msa)]
+end
 
 """
     msaview = subseqs(msa, rowindexes::AbstractVector{Int})
@@ -70,14 +106,80 @@ Construct a reduced-size `msaview`, keeping only the sequences corresponding to 
 function subseqs end
 function subseqs! end
 
+subseqs(msa::AbstractVector{FASTX.FASTA.Record}, rowmask) = msa[rowmask]
+subseqs!(msa::AbstractVector{FASTX.FASTA.Record}, rowmask::AbstractVector{Bool}) =
+    deleteat!(msa, findall(!, rowmask))
+subseqs!(msa::AbstractVector{FASTX.FASTA.Record}, rowindexes::AbstractVector{Int}) =
+    deleteat!(msa, setdiff(1:length(msa), rowindexes))
+
+## End required API, but some can specialize other methods
+
 """
     pc = percent_similarity(msa)
+    pc = percent_similarity(f, msa)
 
 Compute the percent similarity between all pairs of sequences in `msa`.
 `pc[i, j]` is the percent similarity between sequences `i` and `j`.
+
+Optionally apply mapping function `f` to each residue before computing
+similarity.
 """
 function percent_similarity end
 
+function percent_similarity(f, msa)
+    # This mimics MIToS's implementation
+    function pctsim(v1, v2)
+        same = l = 0
+        for (a, b) in zip(v1, v2)
+            isgap(a) && isgap(b) && continue  # skip gaps
+            same += a == b
+            l += 1
+        end
+        return 100 * same / l
+    end
+
+    M = f.(residuematrix(msa))
+    n = size(M, 1)
+    S = zeros(Float64, n, n)
+    for i in 1:n
+        for j in i:n
+            S[i, j] = pctsim(M[i, :], M[j, :])
+            S[j, i] = S[i, j]
+        end
+    end
+    return S
+end
+percent_similarity(msa) = percent_similarity(reduced_alphabet, msa)
+
+function reduced_alphabet(r::Char)
+    if r == '-'
+        return 0
+    elseif r in ('A','I','L','M','V')
+        return 1  # hydrophobic
+    elseif r in ('N','Q','S','T')
+        return 2  # polar
+    elseif r in ('R','H','K')
+        return 3  # charged
+    elseif r in ('D','E')
+        return 4  # charged
+    elseif r in ('F','W','Y')
+        return 5  # aromatic
+    end
+    offset = findfirst(==(r), ('C','G','P'))
+    offset === nothing && throw(ArgumentError("Unknown residue '$r'"))
+    return 5 + offset  # special or unknown
+end
+
+columnwise_entropy(msa) = columnwise_entropy(reduced_alphabet, msa)
+
+# Notes on interpreting letter codes in the "GC.seq_cons" field:
+# - `.` indicates a gap
+# - uppercase single-letter amino acid codes indicate strong consensus (>60%)
+# - lowercase single-letter codes (likely interpretations):
+#   + 'a': aromatic
+#   + 'h': hydrophobic
+#   + rest unknown
+# - '+' and '-' indicate positively- and negatively-charged residues, respectively
 
 ## MSA functions
 
@@ -105,6 +207,10 @@ Remove all sequences from `msa` except those with [`species(sequencename)`](@ref
 """
 function filter_species!(msa, speciesname::AbstractString)
     mask = map(x -> species(x) == speciesname, sequencekeys(msa))
+    subseqs!(msa, mask)
+end
+function filter_species!(msa::AbstractVector{FASTX.FASTA.Record}, speciesname::AbstractString)
+    mask = map(x -> species(x) == speciesname, identifier.(msa))
     subseqs!(msa, mask)
 end
 

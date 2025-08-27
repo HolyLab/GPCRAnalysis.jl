@@ -9,7 +9,17 @@ Read a PDB or mmCIF file `filename` and extract the specified chain.
 getchain(filename::AbstractString; model=1, chain="A") =
     endswith(filename, ".pdb") ? read(filename, PDBFormat)[model][chain] :
     endswith(filename, ".cif") ? read(filename, MMCIFFormat)[model][chain] :
-    throw(ArgumentError("Unknown file format"))
+    throw(ArgumentError("Unknown format for $filename"))
+
+"""
+    writechain(filename::AbstractString, chain::ChainLike)
+
+Write the specified `chain` to a PDB or mmCIF file `filename`.
+"""
+writechain(filename::AbstractString, chain::ChainLike) =
+    endswith(filename, ".pdb") ? writepdb(filename, chain) :
+    endswith(filename, ".cif") ? writemmcif(filename, chain) :
+    throw(ArgumentError("Unknown format for $filename"))
 
 """
     validate_seq_residues(msaseq, chain)
@@ -17,10 +27,15 @@ getchain(filename::AbstractString; model=1, chain="A") =
 Return `true` if the residues in `msaseq` match those in `chain`, ignoring gaps and unknown residues.
 """
 function validate_seq_residues(msaseq, chain)
-    for (i, r) in zip(sequenceindexes(msaseq), msaseq)
-        (isgap(r) || isunknown(r)) && continue
-        res = three2char(String(resname(chain[i])))
-        res == Char(r) || return false
+    try
+        for (i, r) in zip(sequenceindexes(msaseq), msaseq)
+            (isgap(r) || isunknown(r)) && continue
+            res = three2char(String(resname(chain[i])))
+            res == Char(r) || return false
+        end
+    catch
+        @warn "Error validating sequence residues"
+        return false
     end
     return true
 end

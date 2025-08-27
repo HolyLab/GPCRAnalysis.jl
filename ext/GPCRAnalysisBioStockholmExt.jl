@@ -5,17 +5,45 @@ using BioStockholm
 using BioStockholm: OrderedDict   # from OrderedCollections.jl
 
 function conscols(msa::MSA)
-    ss = msa.GC["SS_cons"]
-    return findfirst(!=( '.'), ss):findlast(!=( '.'), ss)
+    if length(msa.GR) == 1
+        # Fast-path: use the reference sequence
+        key, _ = only(msa.GR)
+        s = msa.seq[key]
+        return findall(s) do c
+            c == '-' || isuppercase(c)
+        end
+    end
+    # Slow path: check each sequence, find all that have at least one uppercase in that column
+    keep = falses(length(msa.GC["seq_cons"]))
+    for (_, s) in msa.seq
+        keep .|= isuppercase.(s)
+    end
+    return findall(keep)
 end
 
 # Low-level API implementation
-# GPCRAnalysis.sequenceindexes(msaseq::AnnotatedAlignedSequence) = getsequencemapping(msaseq)
-# GPCRAnalysis.sequenceindexes(msaseq::MSA, i::Int) = getsequencemapping(msaseq, i)
+GPCRAnalysis.sequenceindexes(msa::MSA, i::Int) = GPCRAnalysis.sequenceindexes(msa::MSA, MSACode(GPCRAnalysis.sequencekeys(msa)[i]))
+function GPCRAnalysis.sequenceindexes(msa::MSA, key::MSACode)
+    # seq = GPCRAnalysis.msasequence(msa, key)
+    seq = msa.seq[String(key)]
+    offset = findfirst(!=('.'), seq)
+    filled = [r != '-' for r in seq]
+    cf = cumsum(filled)
+    keepcols = conscols(msa)
+    m = match(r"/(\d+)-(\d+)$", String(key))
+    if m !== nothing
+        start, stop = parse.(Int, m.captures)
+        Δ = start - offset
+        return (filled .* (cf .+ Δ))[keepcols]
+    end
+    return (filled .* cf)[keepcols]
+end
 GPCRAnalysis.sequencekeys(msa::MSA) = collect(keys(msa.seq))
-GPCRAnalysis.msasequence(msa::MSA, key) = msa.seq[key][conscols(msa)]
+GPCRAnalysis.msasequence(msa::MSA, key::MSACode) = msa.seq[String(key)][conscols(msa)]
+GPCRAnalysis.msasequence(msa::MSA, key::AbstractString) = GPCRAnalysis.msasequence(msa, MSACode(key))
 function GPCRAnalysis.residuematrix(msa::MSA)
     keepcols = conscols(msa)
+    # keepcols = Colon()
     reduce(vcat, [permutedims(seq[keepcols]) for (_, seq) in msa.seq])
 end
 GPCRAnalysis.subseqs(msa::MSA{T}, rowmask::AbstractVector{Bool}) where T = MSA{T}(OrderedDict(pr for (pr, keep) in zip(msa.seq, rowmask) if keep), msa.GF, OrderedDict(pr for (pr, keep) in zip(msa.GS, rowmask) if keep), msa.GC, msa.GR)
@@ -47,53 +75,5 @@ function GPCRAnalysis.MSACode(msa::MSA, accession::AbstractString)
 end
 GPCRAnalysis.MSACode(msa::MSA, accession::AccessionCode) = MSACode(msa, accession.name)
 GPCRAnalysis.MSACode(::MSA, accession::MSACode) = accession
-
-
-function reduced_alphabet(r::Char)
-    if r == '-'
-        return 0
-    elseif r in ('A','I','L','M','V')
-        return 1  # hydrophobic
-    elseif r in ('N','Q','S','T')
-        return 2  # polar
-    elseif r in ('R','H','K')
-        return 3  # charged
-    elseif r in ('D','E')
-        return 4  # charged
-    elseif r in ('F','W','Y')
-        return 5  # aromatic
-    end
-    offset = findfirst(==(r), ('C','G','P'))
-    offset === nothing && throw(ArgumentError("Unknown residue '$r'"))
-    return 5 + offset  # special or unknown
-end
-
-GPCRAnalysis.columnwise_entropy(msa) = columnwise_entropy(reduced_alphabet, msa)
-
-function GPCRAnalysis.percent_similarity(f, msa::MSA)
-    # This mimics MIToS's implementation
-    function pctsim(v1, v2)
-        same = l = 0
-        for (a, b) in zip(v1, v2)
-            a == b == 0 && continue  # skip gaps
-            same += a == b
-            l += 1
-        end
-        return 100 * same / l
-    end
-
-    M = f.(GPCRAnalysis.residuematrix(msa))
-    n = size(M, 1)
-    S = zeros(Float64, n, n)
-    for i in 1:n
-        for j in i:n
-            S[i, j] = pctsim(M[i, :], M[j, :])
-            S[j, i] = S[i, j]
-        end
-    end
-    return S
-end
-GPCRAnalysis.percent_similarity(msa::MSA) = GPCRAnalysis.percent_similarity(reduced_alphabet, msa)
-
 
 end

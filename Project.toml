@@ -1,6 +1,6 @@
 name = "GPCRAnalysis"
 uuid = "c1d73f9e-d42a-418a-8d5b-c7b00ec0358f"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Tim Holy <tim.holy@gmail.com> and contributors"]
 
 [deps]

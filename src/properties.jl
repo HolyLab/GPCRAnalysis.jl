@@ -83,5 +83,6 @@ function aa_properties_matrix(seqs::AbstractVector{FASTX.FASTA.Record})
     props = copy(aa_properties_zscored)
     props['-'] = zero(valtype(props))
     props['X'] = zero(valtype(props))
-    return reduce(hcat, [[props[r] for r in sequence(rec)] for rec in seqs])
+    keepcols = columnindexes(seqs)
+    return reduce(hcat, [[props[r] for r in sequence(rec)[keepcols]] for rec in seqs])
 end

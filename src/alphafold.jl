@@ -1,5 +1,5 @@
 # Generates 2 captures, one for the uniprotXname and the other for the version
-const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+).(?:pdb|cif|bcif)"
+const rex_alphafold_pdbs = r"AF-([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})-F1-model_v(\d+)(?:_[A-Z])?(?:\.(?:pdb|cif|bcif))?"
 # Make a regex for a specific uniprotXname (single capture for the version)
 regex_alphafold_pdb(uniprotXname) = Regex("AF-$uniprotXname-F1-model_v(\\d+).(?:pdb|cif|bcif)")
 
@@ -62,12 +62,14 @@ function alphafoldfiles(msa, dirname::AbstractString=pwd(); join::Bool=false)
         ac = AccessionCode(match(rex_alphafold_pdbs, af).captures[1])
         accesscode2idx[ac] = i
     end
-    msacode2structfile = Dict{MSACode,String}()
+    K = typeof(first(sequencekeys(msa)))
+    msacode2structfile = Dict{K<:AbstractString ? MSACode : K,String}()
     for name in sequencekeys(msa)
         ac = AccessionCode(msa, name)
         if haskey(accesscode2idx, ac)
             fn = afs[accesscode2idx[ac]]
-            msacode2structfile[MSACode(name)] = join ? joinpath(dirname, fn) : fn
+            mc = isa(name, AbstractString) ? MSACode(name) : name
+            msacode2structfile[mc] = join ? joinpath(dirname, fn) : fn
         end
     end
     return msacode2structfile
@@ -130,7 +132,7 @@ function download_alphafolds(msa; dirname=pwd(), maxversion=nothing, kwargs...)
     maxversion === nothing || @warn "`download_alphafolds`: `maxversion` kwarg has no effect and is deprecated" maxlog=1
     @showprogress 1 "Downloading AlphaFold files..." for name in sequencekeys(msa)
         uname = AccessionCode(msa, name)
-        url = query_alphafold_latest(uname)
+        url = query_alphafold_latest(uname; kwargs...)
         url === nothing && continue
         fn = split(url, '/')[end]
         path = joinpath(dirname, fn)
@@ -138,7 +140,7 @@ function download_alphafolds(msa; dirname=pwd(), maxversion=nothing, kwargs...)
             Downloads.download(url, path)
         end
         if !validate_seq_residues(msasequence(msa, name), getchain(path))
-            @warn "Residues in $path do not match those in the sequence $name, removing PDB file"
+            @warn "Residues in $path do not match those in the sequence $name, removing structure file"
             rm(path)
         end
     end
@@ -146,7 +148,7 @@ end
 
 function download_alphafolds(ids::AbstractVector{<:AbstractString}; dirname=pwd(), kwargs...)
     @showprogress 1 "Downloading AlphaFold files..." for uname in ids
-        url = query_alphafold_latest(uname)
+        url = query_alphafold_latest(uname; kwargs...)
         url === nothing && continue
         fn = split(url, '/')[end]
         path = joinpath(dirname, fn)

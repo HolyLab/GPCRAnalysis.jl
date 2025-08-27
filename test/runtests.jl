@@ -1,8 +1,7 @@
 using GPCRAnalysis
 using GPCRAnalysis: three2char
 # MSA interface functions
-using GPCRAnalysis: sequenceindexes, columnindexes, isgap, isunknown, sequencekeys, msasequence, residuematrix,
-                     subseqs, subseqs!, percent_similarity
+using GPCRAnalysis: percent_similarity
 using MIToS: MSA, Pfam
 using MIToS.MSA: coverage, GappedAlphabet, nsequences
 using BioStockholm: BioStockholm
@@ -62,13 +61,6 @@ using Test
     end
 
     @testset "MSA" begin
-        # The test file is copied from MIToS/test/data, with gratitude
-        pf09645_sto = "PF09645_full.stockholm"
-        ## First in MIToS format
-        msa = MSA.read_file(pf09645_sto, Pfam.Stockholm)
-        @test MSA.nsequences(filter_species!(deepcopy(msa), "ATV")) == 1
-        @test MSA.nsequences(filter_long!(deepcopy(msa), 70)) == 3
-
         idx = SequenceMapping([0, 4, 5, 0])
         seqvals = fill(NaN, 9)
         seqvals[idx] = [0.1, 0.2, 0.3, 0.4]
@@ -76,6 +68,13 @@ using Test
         @test seqvals[5] == 0.3
         @test all(isnan, seqvals[1:3])
         @test all(isnan, seqvals[6:end])
+
+        # The test file is copied from MIToS/test/data, with gratitude
+        pf09645_sto = "PF09645_full.stockholm"
+        ## First in MIToS format
+        msa = MSA.read_file(pf09645_sto, Pfam.Stockholm; generatemapping=true, useidcoordinates=true)
+        @test MSA.nsequences(filter_species!(deepcopy(msa), "ATV")) == 1
+        @test MSA.nsequences(filter_long!(deepcopy(msa), 70)) == 3
 
         # analyze
         e = columnwise_entropy(msa)
@@ -90,21 +89,13 @@ using Test
         @test AccessionCode(msa, MSACode("Y070_ATV/2-70")) == AccessionCode("Q3V4T1")
         @test MSACode(msa, AccessionCode("Q3V4T1")) == MSACode("Y070_ATV/2-70")
         @test msa[MSACode("Y070_ATV/2-70")][8] == msa[AccessionCode("Q3V4T1")][8] == MSA.Residue('V')
+        msa1 = msa
 
         ## Now in BioStockholm format
         msa = read(pf09645_sto, BioStockholm.MSA)
         @test length(sequencekeys(filter_species!(deepcopy(msa), "ATV"))) == 1
         @test length(sequencekeys(filter_long!(deepcopy(msa), 70))) == 3
 
-        idx = SequenceMapping([0, 4, 5, 0])
-        seqvals = fill(NaN, 9)
-        seqvals[idx] = [0.1, 0.2, 0.3, 0.4]
-        @test seqvals[4] == 0.2
-        @test seqvals[5] == 0.3
-        @test all(isnan, seqvals[1:3])
-        @test all(isnan, seqvals[6:end])
-
-        # analyze
         e = columnwise_entropy(msa)
         @test length(e) == size(residuematrix(msa), 2) && e[9] == 0
         e2 = columnwise_entropy(identity, msa)
@@ -117,10 +108,30 @@ using Test
         @test AccessionCode(msa, MSACode("Y070_ATV/2-70")) == AccessionCode("Q3V4T1")
         @test MSACode(msa, AccessionCode("Q3V4T1")) == MSACode("Y070_ATV/2-70")
         @test msa[MSACode("Y070_ATV/2-70")][8] == msa[AccessionCode("Q3V4T1")][8] == 'V'
+        msa2 = msa
+
+        # Now in FASTA
+        msa = FASTAReader(collect, open("PF09645_full.afa"))
+        @test length(sequencekeys(filter_species!(deepcopy(msa), "ATV"))) == 1
+        @test length(sequencekeys(filter_long!(deepcopy(msa), 70))) == 3
+
+        e = columnwise_entropy(msa)
+        @test length(e) == size(residuematrix(msa), 2) && e[9] == 0
+        e2 = columnwise_entropy(identity, msa)
+        @test all(e2 .>= e)
+        @test !all(e2 .== e)
+
+        @test size(project_sequences(msa)) == (3, 4)
+        @test size(project_sequences(msa; fracvar=0.5)) == (1, 4)
+        msa3 = msa
+        for (i, key) in enumerate(sequencekeys(msa1))
+            key = MSACode(key)
+            @test sequenceindexes(msa1, key) == sequenceindexes(msa2, key) == sequenceindexes(msa3, i)
+        end
     end
     @testset "Properties" begin
         pf09645_sto = "PF09645_full.stockholm"
-        for msa in (MSA.read_file(pf09645_sto, Pfam.Stockholm), read(pf09645_sto, BioStockholm.MSA))
+        for msa in (MSA.read_file(pf09645_sto, Pfam.Stockholm), read(pf09645_sto, BioStockholm.MSA), FASTAReader(collect, open("PF09645_full.afa")))
             X = aa_properties_matrix(msa)
             ΔX = X .- mean(X, dims=2)
             i = findfirst(==(14), columnindexes(msa))
@@ -395,6 +406,8 @@ using Test
                     break
                 end
             end
+            @test startswith(query_ebi_proteins("Q7TQA6"; format=:fasta), ">sp|Q7TQA6")
+            @test count(==('>'), query_ebi_proteins(["C3N734", "H2C869", "Q3V4T1", "P20220"]; format=:fasta)) == 4
             q = query_ncbi(obj)
             @test q["total_count"] == 1
         end

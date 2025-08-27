@@ -31,8 +31,6 @@ end
     columnwise_entropy(f, msa)
 
 Compute the entropy of each column in an MSA, after applying `f` to each residue. Low entropy indicates high conservation.
-
-Unmatched entries (`'-'` residues) contribute to the entropy calculation as if they were an ordinary residue.
 """
 function columnwise_entropy(f, msa)
     resnum = map(f, residuematrix(msa))

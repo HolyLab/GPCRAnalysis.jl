@@ -10,6 +10,15 @@ end
 Return the MSA-internal sequence name associated with `accession`.
 """
 function MSACode end
+function MSACode(msa::AbstractVector{FASTX.FASTA.Record}, seqname::Int)
+    rec = msa[seqname]
+    id = identifier(rec)
+    m = match(rex_alphafold_pdbs, id)
+    if m !== nothing
+        id = m.captures[1]
+    end
+    return MSACode(uniprotX(id))
+end
 
 struct AccessionCode <: NamingConvention
     name::String
@@ -21,6 +30,15 @@ end
 Return the Uniprot accession code associated with `seqname`.
 """
 function AccessionCode end
+function AccessionCode(msa::AbstractVector{FASTX.FASTA.Record}, seqname::Int)
+    rec = msa[seqname]
+    id = identifier(rec)
+    m = match(rex_alphafold_pdbs, id)
+    if m !== nothing
+        id = m.captures[1]
+    end
+    return AccessionCode(uniprotX(id))
+end
 
 Base.String(x::NamingConvention) = x.name
 Base.convert(::Type{NC}, x::AbstractString) where NC<:NamingConvention = NC(x)  # but don't support the other direction

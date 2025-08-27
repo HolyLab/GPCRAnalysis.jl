@@ -16,11 +16,14 @@ using MIToS.MSA: getsequence, getannotsequence, getsequencemapping, getresidues,
 
 # Low-level API implementation
 GPCRAnalysis.sequenceindexes(msaseq::AnnotatedAlignedSequence) = getsequencemapping(msaseq)
-GPCRAnalysis.sequenceindexes(msaseq::AbstractMultipleSequenceAlignment, i::Int) = getsequencemapping(msaseq, i)
+GPCRAnalysis.sequenceindexes(msa::AbstractMultipleSequenceAlignment, i::Int) = getsequencemapping(msa, i)
+GPCRAnalysis.sequenceindexes(msa::AbstractMultipleSequenceAlignment, key::AbstractString) = getsequencemapping(msa, key)
+GPCRAnalysis.sequenceindexes(msa::AbstractMultipleSequenceAlignment, key::MSACode) = sequenceindexes(msa, String(key))
 GPCRAnalysis.isgap(res::MSA.Residue) = res == GAP
 GPCRAnalysis.isunknown(res::MSA.Residue) = res == XAA
 GPCRAnalysis.sequencekeys(msa::AbstractMultipleSequenceAlignment) = sequencenames(msa)
-GPCRAnalysis.msasequence(msa::AbstractMultipleSequenceAlignment, key) = getsequence(msa, key)
+GPCRAnalysis.msasequence(msa::AbstractMultipleSequenceAlignment, key::AbstractString) = getsequence(msa, key)
+GPCRAnalysis.msasequence(msa::AbstractMultipleSequenceAlignment, key::MSACode) = msasequence(msa, String(key))
 GPCRAnalysis.residuematrix(msa::AbstractMultipleSequenceAlignment) = getresidues(msa)
 GPCRAnalysis.subseqs(msa::AbstractMultipleSequenceAlignment, rowmask)  = filtersequences(msa, rowmask)
 GPCRAnalysis.subseqs!(msa::AbstractMultipleSequenceAlignment, rowmask) = filtersequences!(msa, rowmask)

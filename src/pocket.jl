@@ -70,7 +70,7 @@ Return an array of boolean[] indicating which residues (of those specified by `e
 `eclidxs` is a vector (with each entry corresponding to an extracellular loop) of ranges of residue indices.
 """
 function inward_ecl_residues(seq::AbstractVector{<:AbstractResidue}, eclidxs; includes_amino_terminus::Bool=false)
-    tm_top_idxs = filter(x -> 0 < x < length(seq), vcat([[ecl[1] - 1, ecl[end] + 1] for ecl in eclidxs[begin+includes_amino_terminus:end]]...))
+    tm_top_idxs = filter(x -> 0 < x < length(seq), vcat([isempty(ecl) ? ecl : [ecl[begin] - 1, ecl[end] + 1] for ecl in eclidxs[begin+includes_amino_terminus:end]]...))
     topcenter = mean(alphacarbon_coordinates_matrix(seq[tm_top_idxs]); dims=2)
     return [[ecl_res_is_inward(r, topcenter) for r in seq[ecl]] for ecl in eclidxs]
 end
