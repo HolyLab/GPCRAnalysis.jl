@@ -391,6 +391,7 @@ using Test
                     break
                 end
             end
+            @test startswith(query_ebi_proteins("Q7TQA6"; format=:fasta), ">sp|Q7TQA6")
             q = query_ncbi(obj)
             @test q["total_count"] == 1
         end
