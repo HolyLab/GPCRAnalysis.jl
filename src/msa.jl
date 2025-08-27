@@ -33,6 +33,7 @@ Return `true` if the residue `res` is a gap.
 """
 function isgap end
 isgap(c::Char) = c == '-'
+isgap(r::Integer) = iszero(r)   # when mapped to integers, gaps are encoded as 0
 
 """
     isunknown(res)
@@ -99,7 +100,7 @@ function percent_similarity(f, msa)
     function pctsim(v1, v2)
         same = l = 0
         for (a, b) in zip(v1, v2)
-            a == b == 0 && continue  # skip gaps
+            isgap(a) && isgap(b) && continue  # skip gaps
             same += a == b
             l += 1
         end

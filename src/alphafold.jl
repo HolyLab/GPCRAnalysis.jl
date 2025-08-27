@@ -63,7 +63,7 @@ function alphafoldfiles(msa, dirname::AbstractString=pwd(); join::Bool=false)
         accesscode2idx[ac] = i
     end
     K = typeof(first(sequencekeys(msa)))
-    msacode2structfile = Dict{K isa AbstractString ? MSACode : K,String}()
+    msacode2structfile = Dict{K<:AbstractString ? MSACode : K,String}()
     for name in sequencekeys(msa)
         ac = AccessionCode(msa, name)
         if haskey(accesscode2idx, ac)
