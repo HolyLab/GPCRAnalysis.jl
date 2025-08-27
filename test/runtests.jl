@@ -9,6 +9,7 @@ using BioStructures
 using FASTX
 using GaussianMixtureAlignment
 using InvertedIndices
+using IntervalSets
 using Statistics
 using LinearAlgebra
 using JuMP, HiGHS
@@ -283,6 +284,14 @@ using Test
                 @test g1.μ == g2.μ
                 @test g1.σ >= g2.σ
                 @test g1.ϕ >= g2.ϕ
+            end
+        end
+
+        cyl_mgmm = features_from_structure(opsd, 12, 0 .. 8)
+        for (k, gmm) in cyl_mgmm
+            for g in gmm
+                @test g.μ[1]^2 + g.μ[2]^2 <= 12^2
+                @test g.μ[3] ∈ 0 .. 8
             end
         end
     end
