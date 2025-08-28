@@ -88,13 +88,14 @@ and false otherwise.
 
 `applytransform!(chain, tform)` (or the `model` that includes `chain`) will
 re-orient `chain` so that the center of the membrane is `z=0` and extracellular
-is positive.
+is positive. Moreover, the mean `x` and `y` position of atoms in the
+transmembrane residues will be zero.
 
 The algorithm finds the membrane normal `u` by maximizing the ratio
 
-    sumᵢ (u ⋅ vᵢ)²
-  -----------------
-    sumᵢ (u ⋅ δᵢ)²
+    Σᵢ (u ⋅ vᵢ)²
+    ------------
+    Σᵢ (u ⋅ δᵢ)²
 
 where `vᵢ` is a vector parallel to the `i`th TM helix, and `δᵢ` is a
 within-leaflet atomic displacement.
@@ -133,7 +134,7 @@ function align_to_membrane(chain::ChainLike, tms; extracellular::Bool=true)
     t = [0, 0, mean(proj_e) > mean(proj_i) ? 1 : -1]   # extracellular is positive
     q = QuatRotation(1 + u'*t, cross(u, t)...)
     # Apply the rotation to the coordinates, and offset the z-coordinate to the mean of the leaflets
-    ccoords = coordarray(chain)
+    ccoords = coordarray(collectresidues(chain)[reduce(vcat, tms)])
     μ = vec(mean(ccoords, dims=2))
     return Transformation(μ, [0, 0, (median(proj_e) + median(proj_i))/2 - μ'*u], RotMatrix(q))
 end

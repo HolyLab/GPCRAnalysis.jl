@@ -241,6 +241,8 @@ using Test
         zi = median(ci[3,:])
         @test ze > zi    # extracellular is positive
         @test abs(ze + zi) < 1e-6 * (ze - zi) # center of membrane is at z=0
+        ccoords = coordarray(collectresidues(opsd)[reduce(vcat, opsd_tms)])
+        @test norm(mean(ccoords, dims=2)[1:2]) < 1000 * eps(eltype(ccoords))  # mean x and y is zero
 
         tm_res = inward_tm_residues(opsd, opsd_tms[[2,3,5,6,7]])
         @test length(tm_res) == 5
