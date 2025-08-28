@@ -112,8 +112,8 @@ function align_to_membrane(chain::ChainLike, tms; extracellular::Bool=true)
     # Collect the atom displacements in each leaflet
     delta_e = leaflet_displacements(leaflet_e)
     delta_i = leaflet_displacements(leaflet_i)
-    # Also collect the vectors for the TM helices
-    tm_vectors = [residue_centroid(chain[first(r)]) - residue_centroid(chain[last(r)]) for r in tms]
+    # Also collect the vectors for the TM helices. Use the CA atoms since these are part of the backbone.
+    tm_vectors = [coords(chain[first(r)]["CA"]) - coords(chain[last(r)]["CA"]) for r in tms]
     # Find the membrane normal u, maximizing the ratio
     #         sumᵢ (u ⋅ vᵢ)²
     #       -----------------
