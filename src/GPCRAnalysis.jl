@@ -15,6 +15,7 @@ using Hungarian
 using ProgressMeter
 using StaticArrays
 using Rotations
+using IntervalSets
 using TravelingSalesmanHeuristics
 
 using Interpolations

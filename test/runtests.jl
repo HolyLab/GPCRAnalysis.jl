@@ -9,6 +9,7 @@ using BioStructures
 using FASTX
 using GaussianMixtureAlignment
 using InvertedIndices
+using IntervalSets
 using Statistics
 using LinearAlgebra
 using JuMP, HiGHS
@@ -240,6 +241,8 @@ using Test
         zi = median(ci[3,:])
         @test ze > zi    # extracellular is positive
         @test abs(ze + zi) < 1e-6 * (ze - zi) # center of membrane is at z=0
+        ccoords = coordarray(collectresidues(opsd)[reduce(vcat, opsd_tms)])
+        @test norm(mean(ccoords, dims=2)[1:2]) < 1000 * eps(eltype(ccoords))  # mean x and y is zero
 
         tm_res = inward_tm_residues(opsd, opsd_tms[[2,3,5,6,7]])
         @test length(tm_res) == 5
@@ -283,6 +286,14 @@ using Test
                 @test g1.μ == g2.μ
                 @test g1.σ >= g2.σ
                 @test g1.ϕ >= g2.ϕ
+            end
+        end
+
+        cyl_mgmm = features_from_structure(opsd, 12, 0 .. 8)
+        for (k, gmm) in cyl_mgmm
+            for g in gmm
+                @test g.μ[1]^2 + g.μ[2]^2 <= 12^2
+                @test g.μ[3] ∈ 0 .. 8
             end
         end
     end

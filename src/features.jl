@@ -163,3 +163,36 @@ function features_from_structure(seq, idxs=1:length(seq); kwargs...)
     end
     return mgmm
 end
+
+"""
+    mgmm = features_from_structure(seq::ChainLike, ρmax::Real, zi::AbstractInterval)
+
+Construct an `IsotropicMultiGMM` from `seq` including all atoms that lie within
+the cylinder
+
+    x^2 + y^2 <= ρmax^2
+    z ∈ zi
+
+`zi` is an `AbstractInterval`, e.g. `0..30` or `-15..15` (see IntervalSets.jl).
+
+This implicitly assumes that you've aligned `seq` to the membrane, or aligned
+`seq` to a homolog that is membrane-aligned. See [`align_to_membrane`](@ref),
+[`align`](@ref).
+"""
+function features_from_structure(
+        seq, ρmax::Real, zi::AbstractInterval;
+        σfun = atomic_σfun,
+        ϕfun = atomic_ϕfun,
+    )
+    mgmm = IsotropicMultiGMM(Dict{Symbol,IsotropicGMM{3,Float64}}())
+    for r in seq
+        for a in r
+            c = coords(a)
+            ρ = hypot(c[1], c[2])
+            if ρ < ρmax && c[3] ∈ zi
+                add_features_from_atom!(mgmm, a, r, σfun, ϕfun)
+            end
+        end
+    end
+    return mgmm
+end
