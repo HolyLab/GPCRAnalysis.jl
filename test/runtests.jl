@@ -491,7 +491,11 @@ using Test
                 # Choose a sufficiently-divergent pair that structural alignment is nontrivial
                 idxref = findfirst(str -> startswith(str, "K7N701"), sequencekeys(msa))
                 idxcmp = findfirst(str -> startswith(str, "K7N778"), sequencekeys(msa))
-                cref, ccmp = afnbyidx(idxref), afnbyidx(idxcmp)
+                # Use pinned v4 structures so that tmalign.txt (generated from v4) stays valid;
+                # AlphaFold coordinates change with each model release.
+                pdbdir = joinpath(@__DIR__, "PDBs")
+                cref = getchain(joinpath(pdbdir, "AF-K7N701-F1-model_v4.pdb"))
+                ccmp = getchain(joinpath(pdbdir, "AF-K7N778-F1-model_v4.pdb"))
                 sa = StructAlign(cref, ccmp, joinpath(@__DIR__, "tmalign.txt"))
                 @test !ismapped(sa, 1, nothing)
                 @test  ismapped(sa, 11, nothing)
