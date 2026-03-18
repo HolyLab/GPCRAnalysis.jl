@@ -40,6 +40,23 @@ function validate_seq_residues(msaseq, chain)
     return true
 end
 
+function validate_seq_residues(msaseq::AbstractString, chain)
+    chainiter = iterate(chain)
+    item, state = chainiter
+    for r in msaseq
+        (isgap(r) || isunknown(r)) && continue
+        res = three2char(String(resname(item)))
+        res == Char(r) || return false
+        chainiter = iterate(chain, state)
+        if chainiter !== nothing
+            item, state = chainiter
+        else
+            state = nothing # throws if this gets used again
+        end
+    end
+    return chainiter === nothing
+end
+
 function countitems(list)
     count = Dict{eltype(list),Int}()
     for item in list
