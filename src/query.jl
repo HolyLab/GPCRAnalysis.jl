@@ -16,7 +16,7 @@ You can also supply several proteins as a comma-separated list.
 `result` is a JSON3 object with many fields.
 """
 function query_ebi_proteins(id::AbstractString; size=count(==(','), id)+1, format::Symbol=:json)
-    resp = HTTP.get("https://www.ebi.ac.uk/proteins/api/proteins?offset=0&size=$size&accession=$id", ["Accept" => formats[format]])
+    resp = HTTP.get("https://www.ebi.ac.uk/proteins/api/proteins?offset=0&size=$size&accession=$id", ["Accept" => formats[format]]; status_exception=false)
     if resp.status == 200
         return mktemp() do tmppath, tmpio
             body = String(resp.body)
@@ -32,6 +32,37 @@ function query_ebi_proteins(id::AbstractString; size=count(==(','), id)+1, forma
 end
 query_ebi_proteins(id::AbstractVector{<:AbstractString}; kwargs...) =
     query_ebi_proteins(join(id, ','); kwargs...)
+
+"""
+    ntms = query_tm_count(id)
+    ntms = query_tm_count(ids)
+
+Query the EBI Proteins API for the number of annotated transmembrane (TRANSMEM) segments.
+
+The single-accession form returns an `Int` (or `nothing` if the entry is not found). The
+vector form returns a `Dict{String,Int}` mapping each returned accession code to its count.
+Queries are batched at 50 IDs per request.
+
+Useful for choosing an `id_for_tms` for [`align_family`](@ref): a good reference receptor
+should have its TM segments fully annotated (e.g., 7 for a canonical GPCR).
+"""
+function query_tm_count(ids::AbstractVector{<:AbstractString}; batchsize=50)
+    result = Dict{String,Int}()
+    for i in firstindex(ids):batchsize:lastindex(ids)
+        batch = ids[i:min(i+batchsize-1, lastindex(ids))]
+        response = query_ebi_proteins(batch)
+        response === nothing && continue
+        for r in response
+            result[String(r["accession"])] = count(f -> f["type"] == "TRANSMEM", r["features"])
+        end
+    end
+    return result
+end
+
+function query_tm_count(id::AbstractString)
+    result = query_tm_count([id])
+    return get(result, id, nothing)
+end
 
 """
     result = query_ncbi(id)

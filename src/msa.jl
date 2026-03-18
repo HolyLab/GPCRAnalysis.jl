@@ -271,3 +271,19 @@ function Base.setindex!(fullseqvec::Vector, colvalues::AbstractVector, sm::Seque
     end
     return fullseqvec
 end
+
+"""
+    AlignFamilyParams(; gapfrac_max=0.2, maxentropy=0.2)
+
+Parameters controlling which MSA columns are used as structural alignment anchors in
+[`align_family`](@ref).
+
+- `gapfrac_max`: columns where more than this fraction of sequences have a gap are
+  excluded (default 0.2).
+- `maxentropy`: columns with entropy above this threshold are excluded (default 0.2).
+  Lower entropy means higher conservation.
+"""
+@kwdef struct AlignFamilyParams
+    gapfrac_max::Float64 = 0.2
+    maxentropy::Float64 = 0.2
+end

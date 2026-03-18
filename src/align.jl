@@ -82,9 +82,8 @@ end
 
 Compute the rigid transformation `tform` needed to align `chain` to the
 membrane, given the transmembrane segments `tms` as residue-indexes (e.g.,
-`[37:61, 74:96, ...]`). `extracelluar` should be true if the N-terminus of the
-protein is extracellular (`chain[first(tms[1])]` is at the extracellular face),
-and false otherwise.
+`[37:61, 74:96, ...]`). `extracellular` should be true if the N-terminus of the
+chain is extracellular, and false otherwise.
 
 `applytransform!(chain, tform)` (or the `model` that includes `chain`) will
 re-orient `chain` so that the center of the membrane is `z=0` and extracellular
@@ -167,6 +166,169 @@ function collect_leaflet_residues(chain, tms, extracellular::Bool)
         extracellular = !extracellular
     end
     return leaflet_e, leaflet_i
+end
+
+## Alignment using MUSCLE
+# https://github.com/rcedgar/muscle
+
+"""
+    align_muscle(infile::AbstractString, outfile::AbstractString)
+
+Run [MUSCLE](https://github.com/rcedgar/muscle) to align the sequences in
+`infile` and write the aligned sequences to `outfile`. Both files should be in
+FASTA format.
+
+# Examples
+
+Let's get the sequences of two receptors and then align them with MUSCLE:
+
+```
+julia> open("infile.fasta", "w") do io
+    write(io, query_ebi_proteins(["Q8R256", "E9Q8I6"]; format=:fasta))
+end
+
+julia> align_muscle("infile.fasta", "outfile.fasta")
+```
+"""
+align_muscle(infile::AbstractString, outfile::AbstractString) = run(`$(muscle()) -align $infile -output $outfile`)
+
+"""
+    msa = align_family(; ids=nothing, msafile, srcdir, destdir, id_for_tms,
+                         conserved_params=AlignFamilyParams())
+
+Download and structurally align AlphaFold models for a family of receptors.
+
+# Arguments
+- `msafile`: path to the FASTA MSA file. This anchors the workflow: if the file does not
+  exist yet, `ids` must be supplied to create it; if it already exists (e.g. when
+  resuming an interrupted run), it is read directly and `ids` is not needed.
+- `ids`: a vector of UniProt accession codes, required only to create `msafile`.
+  Sequences are fetched from EBI in batches of 50 and aligned with MUSCLE.
+- `srcdir`: directory for downloaded AlphaFold structure files.
+- `destdir`: directory for the aligned output CIF files.
+- `id_for_tms`: UniProt accession of the reference receptor. Must appear in the MSA and
+  have an AlphaFold structure. Its TRANSMEM annotations from EBI are used to orient all
+  structures to the membrane normal. Use [`query_tm_count`](@ref) to find an accession
+  with a complete TM annotation.
+- `conserved_params`: an [`AlignFamilyParams`](@ref) controlling which MSA columns serve
+  as alignment anchors.
+
+# Returns
+The MSA as a `Vector{FASTX.FASTA.Record}`.
+
+# Steps
+1. Create the MSA from `ids` if `msafile` does not already exist.
+2. Fetch TRANSMEM annotations for `id_for_tms` from EBI.
+3. Download AlphaFold structures for all MSA sequences into `srcdir`.
+4. Identify conserved, low-gap MSA columns as structural alignment anchors.
+5. Align the reference structure to the membrane normal.
+6. Align every structure to the reference using α-carbon positions at the conserved
+   columns, and write the results to `destdir`.
+"""
+function align_family(;
+        ids=nothing,
+        msafile,
+        srcdir,
+        destdir,
+        id_for_tms,
+        conserved_params=AlignFamilyParams(),
+    )
+    # Step 1: create MSA from ids if msafile doesn't exist yet
+    if !isfile(msafile)
+        ids !== nothing || throw(ArgumentError(
+            "`msafile` \"$msafile\" does not exist; supply `ids` to create it"
+        ))
+        mktemp() do seqfile, seqio
+            for i in firstindex(ids):50:lastindex(ids)
+                result = query_ebi_proteins(ids[i:min(i+49, lastindex(ids))]; format=:fasta)
+                result === nothing && continue
+                write(seqio, result)
+            end
+            close(seqio)
+            align_muscle(seqfile, msafile)
+        end
+    end
+
+    msa = FASTAReader(open(msafile)) do io
+        collect(io)
+    end
+
+    # Step 2: fetch TM segment annotations for the reference
+    ref_entry = query_ebi_proteins(id_for_tms)
+    (ref_entry === nothing || isempty(ref_entry)) && error("EBI query failed for $id_for_tms")
+    reftms = [parse(Int, f["begin"]):parse(Int, f["end"])
+              for f in only(ref_entry).features
+              if f["type"] == "TRANSMEM"]
+    isempty(reftms) && error("No TRANSMEM features found for $id_for_tms; try a different `id_for_tms`")
+    length(reftms) == 7 || error("Need 7 TM segments for $id_for_tms, but found $(length(reftms)); try a different `id_for_tms`")
+
+    # Step 3: download AlphaFold structures
+    isdir(srcdir) || mkdir(srcdir)
+    download_alphafolds(msa; dirname=srcdir)
+
+    # Step 4: identify conserved, low-gap MSA columns as alignment anchors
+    # columnindexes filters out all-gap columns; map conserved back to full-sequence positions
+    colidxs = columnindexes(msa)
+    resmtrx = residuematrix(msa)   # columns correspond to colidxs
+    colentropy = columnwise_entropy(msa)
+    gapfrac = vec(mean(resmtrx .== '-', dims=1))
+    ce = [gapfrac[j] > conserved_params.gapfrac_max ? Inf : colentropy[j]
+          for j in eachindex(colentropy)]
+    conserved = colidxs[findall(ce .< conserved_params.maxentropy)]
+    conserved_set = Set(conserved)
+
+    # Find the reference sequence in the MSA
+    msaidx = Dict(uniprotX(identifier(msa[i])) => i for i in eachindex(msa))
+    refseqidx = get(msaidx, id_for_tms, nothing)
+    refseqidx === nothing && error("$id_for_tms not found in MSA ($msafile)")
+
+    # Step 5: align reference structure to membrane
+    reffile = alphafoldfile(id_for_tms, srcdir; join=true)
+    reffile === nothing && error("AlphaFold structure for $id_for_tms not found in $srcdir")
+    refchain = getchain(reffile)
+    applytransform!(refchain, align_to_membrane(refchain, reftms))
+
+    # Extract α-carbon coordinates at the conserved MSA columns.
+    # `msaseq` is the full aligned sequence (gaps as '-'); `chainidx` counts non-gap
+    # residues so that residues[chainidx] matches the current MSA position.
+    sentinel = fill(NaN, 3)
+    function alphacoords_at(chain, msaseq)
+        residues = collectresidues(chain)
+        coords = zeros(3, length(conserved))
+        chainidx = outidx = 0
+        for (i, r) in enumerate(msaseq)
+            r != '-' && (chainidx += 1)
+            if i in conserved_set
+                coords[:, outidx += 1] = r == '-' ? sentinel : alphacarbon_coordinates(residues[chainidx])
+            end
+        end
+        return coords
+    end
+
+    refcoords = alphacoords_at(refchain, msasequence(msa, refseqidx))
+    any(isnan, refcoords) && error(
+        "$id_for_tms has gaps at conserved MSA columns; " *
+        "choose a different `id_for_tms` or adjust `conserved_params`"
+    )
+
+    # Step 6: align all structures to the reference and write to destdir
+    isdir(destdir) || mkdir(destdir)
+    for i in eachindex(msa)
+        name = uniprotX(identifier(msa[i]))
+        structfile = alphafoldfile(name, srcdir; join=true)
+        structfile === nothing && continue
+        c = getchain(structfile)
+        ccoords = alphacoords_at(c, msasequence(msa, i))
+        keep = vec(.!any(isnan.(ccoords); dims=1))
+        if !any(keep)
+            @warn "No conserved-column coordinates available for $name; skipping"
+            continue
+        end
+        applytransform!(c, Transformation(ccoords[:, keep], refcoords[:, keep]))
+        writechain(joinpath(destdir, "$name.cif"), c)
+    end
+
+    return msa
 end
 
 ## Needleman-Wunsch alignment

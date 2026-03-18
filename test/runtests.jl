@@ -423,6 +423,19 @@ using Test
             @test q["total_count"] == 1
         end
 
+        @testset "TM counts" begin
+            # P29274 (ADORA2A_HUMAN) and P29275 (ADORA2B_HUMAN) are canonical GPCRs
+            # with 7 annotated TM segments in UniProt
+            ntms = query_tm_count(["P29274", "P29275"])
+            @test get(ntms, "P29274", 0) == 7
+            @test get(ntms, "P29275", 0) == 7
+
+            # Single-ID form returns an Int
+            @test query_tm_count("P29274") == 7
+            @test query_tm_count("P02769") == 0          # BSA — cytosolic, no TMs
+            @test query_tm_count("notanid12345") === nothing  # nonexistent ID
+        end
+
         @testset "AlphaFold" begin
             @test try_download_alphafold("garbage") === nothing
             uname = "K7N608"
@@ -535,6 +548,26 @@ using Test
                 @test occursin("show #2 :70", script)
                 @test occursin("show #2 :73", script)
                 @test occursin("matchmaker #2-2 to #1", script)
+            end
+        end
+        @testset "align_family" begin
+            # Use two related human adenosine receptors (same subfamily, well annotated)
+            ids = ["P29274", "P29275"]
+            mktempdir() do dir
+                msafile = joinpath(dir, "msa.fasta")
+                srcdir  = joinpath(dir, "src")
+                destdir = joinpath(dir, "dest")
+                msa = align_family(; ids, msafile, srcdir, destdir, id_for_tms="P29274")
+                @test length(msa) == 2
+                @test isfile(msafile)            # MSA was written
+                @test isfile(joinpath(destdir, "P29274.cif"))
+                @test isfile(joinpath(destdir, "P29275.cif"))
+                # Output files should be valid CIF structures
+                @test getchain(joinpath(destdir, "P29274.cif")) isa GPCRAnalysis.ChainLike
+                @test getchain(joinpath(destdir, "P29275.cif")) isa GPCRAnalysis.ChainLike
+                # Re-running without ids (msafile exists) should complete without errors
+                msa2 = align_family(; msafile, srcdir, destdir, id_for_tms="P29274")
+                @test length(msa2) == 2
             end
         end
     end
