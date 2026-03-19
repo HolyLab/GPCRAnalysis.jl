@@ -296,6 +296,71 @@ using Test
                 @test g.μ[3] ∈ 0 .. 8
             end
         end
+
+        # pocket_pharmacophore: should reproduce the manually-indexed result
+        pp = pocket_pharmacophore(opsd, opsd_tms[[2,3,5,6,7]])
+        @test pp isa IsotropicMultiGMM
+        @test keys(pp.gmms) == keys(tm_mgmm.gmms)
+        for k in keys(pp.gmms)
+            @test length(pp[k]) == length(tm_mgmm[k])
+            for (g1, g2) in zip(pp[k], tm_mgmm[k])
+                @test g1.μ ≈ g2.μ
+                @test g1.σ ≈ g2.σ
+                @test g1.ϕ ≈ g2.ϕ
+            end
+        end
+
+        # pocket_pharmacophore with eclidxs: must have at least as many features
+        pp_ecl = pocket_pharmacophore(opsd, opsd_tms[[2,3,5,6,7]]; eclidxs=opsd_ecls)
+        @test pp_ecl isa IsotropicMultiGMM
+        @test sum(length, values(pp_ecl.gmms)) >= sum(length, values(pp.gmms))
+
+        # complementary_pharmacophore: swaps ionic and H-bond features, preserves others
+        cp = complementary_pharmacophore(pp)
+        @test cp isa IsotropicMultiGMM
+        # Total number of Gaussians is preserved
+        @test sum(length, values(cp.gmms)) == sum(length, values(pp.gmms))
+        # Ionizable and H-bond channels are swapped
+        for (orig, comp) in ((:PosIonizable, :NegIonizable), (:NegIonizable, :PosIonizable),
+                             (:Donor, :Acceptor), (:Acceptor, :Donor))
+            haskey(pp.gmms, orig) && @test length(cp[comp]) == length(pp[orig])
+        end
+        # Hydrophobe/Aromatic/Steric are unchanged
+        for k in (:Hydrophobe, :Aromatic, :Steric)
+            haskey(pp.gmms, k) && @test length(cp[k]) == length(pp[k])
+        end
+        # Double complement is identity
+        @test sum(length, values(complementary_pharmacophore(cp).gmms)) == sum(length, values(pp.gmms))
+
+        # detect_pocket_cavity: use coarse grid for speed
+        cavity = detect_pocket_cavity(opsd, opsd_tms; grid_spacing=2.0)
+        @test cavity isa IsotropicGMM
+        @test !isempty(cavity)
+        zi = GPCRAnalysis._pocket_z_range(collectresidues(opsd), opsd_tms)
+        for g in cavity
+            @test g.μ[1]^2 + g.μ[2]^2 < 12.0^2 + 0.1  # within ρmax cylinder
+            @test leftendpoint(zi) - 0.1 ≤ g.μ[3] ≤ rightendpoint(zi) + 0.1  # within z range
+        end
+        # Custom zi restricts search correctly
+        zi_small = 5.0 .. 15.0
+        cavity_small = detect_pocket_cavity(opsd, opsd_tms; grid_spacing=2.0, zi=zi_small)
+        @test all(g -> leftendpoint(zi_small) - 0.1 ≤ g.μ[3] ≤ rightendpoint(zi_small) + 0.1, cavity_small)
+        @test length(cavity_small) < length(cavity)
+
+        # complementary_pharmacophore with cavity: positions must come from the cavity
+        cavity_positions = Set([g.μ for g in cavity])
+        cp_cavity = complementary_pharmacophore(pp, cavity)
+        @test cp_cavity isa IsotropicMultiGMM
+        @test sum(length, values(cp_cavity.gmms)) == sum(length, values(pp.gmms))
+        for (k, gmm) in cp_cavity
+            for g in gmm
+                @test g.μ ∈ cavity_positions  # every position is a valid void probe
+            end
+        end
+        # Feature types are still swapped
+        for (orig, comp) in ((:PosIonizable, :NegIonizable), (:Donor, :Acceptor))
+            haskey(pp.gmms, orig) && @test length(cp_cavity[comp]) == length(pp[orig])
+        end
     end
 
     @testset "Forces" begin
