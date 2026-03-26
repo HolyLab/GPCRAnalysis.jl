@@ -361,6 +361,9 @@ using Test
         for (orig, comp) in ((:PosIonizable, :NegIonizable), (:Donor, :Acceptor))
             haskey(pp.gmms, orig) && @test length(cp_cavity[comp]) == length(pp[orig])
         end
+        # Trimming low-amplitude features
+        cp_cavity_thresh = complementary_pharmacophore(pp, cavity; ampthreshold=0.1)
+        @test length(cp_cavity_thresh[:Steric]) < length(cp_cavity[:Steric]) / 2
     end
 
     @testset "Forces" begin

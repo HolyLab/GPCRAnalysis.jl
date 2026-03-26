@@ -247,14 +247,17 @@ function complementary_pharmacophore(mgmm::IsotropicMultiGMM)
     return result
 end
 
-function complementary_pharmacophore(mgmm::IsotropicMultiGMM, cavity::IsotropicGMM)
+function complementary_pharmacophore(mgmm::IsotropicMultiGMM, cavity::IsotropicGMM; ampthreshold::Real=0.0)
     cavity_positions = [g.μ for g in cavity]
     result = IsotropicMultiGMM(Dict{keytype(mgmm), valtype(mgmm)}())
     for (k, gmm) in mgmm
         dest = get!(valtype(result), result, _complement_feature(k))
         for g in gmm
             nearest = argmin(sum(abs2, g.μ - c) for c in cavity_positions)
-            push!(dest, IsotropicGaussian(cavity_positions[nearest], g.σ, g.ϕ))
+            μp = cavity_positions[nearest]
+            amp = exp(-(sum(abs2, g.μ - μp) / (4 * g.σ^2)))
+            amp < ampthreshold && continue
+            push!(dest, IsotropicGaussian(cavity_positions[nearest], g.σ, amp))
         end
     end
     return result
