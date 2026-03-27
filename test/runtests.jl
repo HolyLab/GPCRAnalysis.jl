@@ -298,7 +298,7 @@ using Test
         end
 
         # pocket_pharmacophore: should reproduce the manually-indexed result
-        pp = pocket_pharmacophore(opsd, opsd_tms[[2,3,5,6,7]])
+        pp = pocket_pharmacophore(opsd, opsd_tms[[2,3,5,6,7]]; eclidxs=Int[])
         @test pp isa IsotropicMultiGMM
         @test keys(pp.gmms) == keys(tm_mgmm.gmms)
         for k in keys(pp.gmms)
@@ -311,7 +311,7 @@ using Test
         end
 
         # pocket_pharmacophore with eclidxs: must have at least as many features
-        pp_ecl = pocket_pharmacophore(opsd, opsd_tms[[2,3,5,6,7]]; eclidxs=opsd_ecls)
+        pp_ecl = pocket_pharmacophore(opsd, opsd_tms)
         @test pp_ecl isa IsotropicMultiGMM
         @test sum(length, values(pp_ecl.gmms)) >= sum(length, values(pp.gmms))
 

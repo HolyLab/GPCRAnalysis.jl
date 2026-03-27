@@ -61,6 +61,16 @@ function ecl_res_is_inward(r::AbstractResidue, topcenter)
     return dot(topcenter .- accoord, scvec) > 0
 end
 
+function default_eclidxs(tmidxs)
+    length(tmidxs) == 7 || error("Expected 7 TM helices in tmidxs, got $(length(tmidxs))")
+    return (
+        1:tmidxs[1][1]-1,
+        tmidxs[2][end]+1:tmidxs[3][1]-1,
+        tmidxs[4][end]+1:tmidxs[5][1]-1,
+        tmidxs[6][end]+1:tmidxs[7][1]-1,
+    )
+end
+
 
 """
     inward_ecl_residues(seq, eclidxs)
@@ -200,9 +210,15 @@ See also: [`complementary_pharmacophore`](@ref), [`inward_tm_residues`](@ref),
 [`inward_ecl_residues`](@ref), [`features_from_structure`](@ref).
 """
 function pocket_pharmacophore(seq::AbstractVector{<:AbstractResidue}, tmidxs; eclidxs=nothing, kwargs...)
+    if eclidxs === nothing
+        length(tmidxs) == 7 || error("Expected 7 TM helices in tmidxs, got $(length(tmidxs))")
+    end
     tminward = inward_tm_residues(seq, tmidxs)
     idxs = reduce(vcat, [tm[inward] for (tm, inward) in zip(tmidxs, tminward)])
-    if eclidxs !== nothing
+    if eclidxs === nothing
+        eclidxs = default_eclidxs(tmidxs)
+    end
+    if !isempty(eclidxs)
         eclinward = inward_ecl_residues(seq, eclidxs)
         append!(idxs, reduce(vcat, [ecl[inward] for (ecl, inward) in zip(eclidxs, eclinward)]))
     end
@@ -213,7 +229,7 @@ pocket_pharmacophore(seq::Chain, tmidxs; kwargs...) =
 
 """
     cmgmm = complementary_pharmacophore(mgmm)
-    cmgmm = complementary_pharmacophore(mgmm, cavity)
+    cmgmm = complementary_pharmacophore(mgmm, cavity; ampthreshold=0.0)
 
 Return the pharmacophoric complement of `mgmm`, representing the features an ideal
 ligand should present to bind the pocket described by `mgmm`.
@@ -235,6 +251,15 @@ projecting it out of the receptor into accessible space. This form is preferred 
 docking with `rocs_align` or `gogma_align` (from GaussianMixtureAlignment).
 
 See also: [`pocket_pharmacophore`](@ref), [`detect_pocket_cavity`](@ref).
+
+# Examples
+
+```
+julia> receptor_gmm = pocket_pharmacophore(chain, tmidxs);
+
+julia> cavity = detect_pocket_cavity(chain, tmidxs);
+
+julia> ligand_gmm = complementary_pharmacophore(receptor_gmm, cavity; ampthreshold=0.1);
 """
 function complementary_pharmacophore(mgmm::IsotropicMultiGMM)
     result = IsotropicMultiGMM(Dict{keytype(mgmm), valtype(mgmm)}())
@@ -256,8 +281,22 @@ function complementary_pharmacophore(mgmm::IsotropicMultiGMM, cavity::IsotropicG
             nearest = argmin(sum(abs2, g.μ - c) for c in cavity_positions)
             μp = cavity_positions[nearest]
             amp = exp(-(sum(abs2, g.μ - μp) / (4 * g.σ^2)))
-            amp < ampthreshold && continue
             push!(dest, IsotropicGaussian(cavity_positions[nearest], g.σ, amp))
+        end
+        # Consolidate by μ and σ before applying the amplitude threshold
+        if !isempty(dest)
+            g = first(dest)
+            samegs = Dict{Tuple{typeof(g.μ), typeof(g.σ)}, typeof(g)}()
+            for g in dest
+                gagg = get(samegs, (g.μ, g.σ), nothing)
+                if gagg === nothing
+                    samegs[(g.μ, g.σ)] = g
+                else
+                    samegs[(g.μ, g.σ)] = IsotropicGaussian(g.μ, g.σ, gagg.ϕ + g.ϕ)
+                end
+            end
+            gs = collect(Iterators.filter(g -> g.ϕ > ampthreshold, values(samegs)))
+            result.gmms[k] = IsotropicGMM(gs)
         end
     end
     return result
