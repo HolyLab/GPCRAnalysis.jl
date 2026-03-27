@@ -257,7 +257,7 @@ See also: [`pocket_pharmacophore`](@ref), [`detect_pocket_cavity`](@ref).
 ```
 julia> receptor_gmm = pocket_pharmacophore(chain, tmidxs);
 
-julia> cavity = detect_pocket_cavity(chain, tmidxs);
+julia> cavity = detect_pocket_cavity(chain, tmidxs; zi=0.0 .. 25.0);
 
 julia> ligand_gmm = complementary_pharmacophore(receptor_gmm, cavity; ampthreshold=0.1);
 """
@@ -276,7 +276,9 @@ function complementary_pharmacophore(mgmm::IsotropicMultiGMM, cavity::IsotropicG
     cavity_positions = [g.μ for g in cavity]
     result = IsotropicMultiGMM(Dict{keytype(mgmm), valtype(mgmm)}())
     for (k, gmm) in mgmm
-        dest = get!(valtype(result), result, _complement_feature(k))
+        kcomp = _complement_feature(k)
+        dest = get!(valtype(result), result, kcomp)
+        @assert isempty(dest)
         for g in gmm
             nearest = argmin(sum(abs2, g.μ - c) for c in cavity_positions)
             μp = cavity_positions[nearest]
@@ -296,7 +298,7 @@ function complementary_pharmacophore(mgmm::IsotropicMultiGMM, cavity::IsotropicG
                 end
             end
             gs = collect(Iterators.filter(g -> g.ϕ > ampthreshold, values(samegs)))
-            result.gmms[k] = IsotropicGMM(gs)
+            result.gmms[kcomp] = IsotropicGMM(gs)
         end
     end
     return result
