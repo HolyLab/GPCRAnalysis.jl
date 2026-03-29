@@ -231,24 +231,29 @@ pocket_pharmacophore(seq::Chain, tmidxs; kwargs...) =
     cmgmm = complementary_pharmacophore(mgmm)
     cmgmm = complementary_pharmacophore(mgmm, cavity; ampthreshold=0.0)
 
-Return the pharmacophoric complement of `mgmm`, representing the features an ideal
-ligand should present to bind the pocket described by `mgmm`.
+Return the pharmacophoric complement of `mgmm`, representing the features an
+ideal ligand should present to bind the pocket described by `mgmm`.
 
 Features are swapped according to the rules of molecular recognition:
-- `:PosIonizable` (Arg/Lys on the receptor) ↔ `:NegIonizable` (anionic group on ligand)
-- `:NegIonizable` (Asp/Glu on the receptor) ↔ `:PosIonizable` (cationic group on ligand)
+- `:PosIonizable` (Arg/Lys on the receptor) ↔ `:NegIonizable` (anionic group on
+  ligand)
+- `:NegIonizable` (Asp/Glu on the receptor) ↔ `:PosIonizable` (cationic group on
+  ligand)
 - `:Donor` ↔ `:Acceptor`
-- `:Steric`, `:Hydrophobe`, `:Aromatic` are unchanged
+- `:Hydrophobe`, `:Aromatic` are unchanged
+- `:Steric` is dropped if `cavity` is supplied (which is a better
+  parametrization of the steric features of the pocket), otherwise unchanged.
 
-When called with a single argument, each complementary feature is placed at the same
-position as the corresponding receptor atom. This is a useful approximation but the
-resulting positions lie inside the receptor's van der Waals surface, so a ligand placed
-there would clash with the receptor.
+When called with a single argument, each complementary feature is placed at the
+same position as the corresponding receptor atom. This is a useful approximation
+but the resulting positions lie inside the receptor's van der Waals surface, so
+a ligand placed there would clash with the receptor.
 
-When `cavity` (an `IsotropicGMM` from [`detect_pocket_cavity`](@ref)) is supplied,
-each complementary feature is instead placed at the nearest void-space probe position,
-projecting it out of the receptor into accessible space. This form is preferred for
-docking with `rocs_align` or `gogma_align` (from GaussianMixtureAlignment).
+When `cavity` (an `IsotropicGMM` from [`detect_pocket_cavity`](@ref)) is
+supplied, each complementary feature is instead placed at the nearest void-space
+probe position, projecting it out of the receptor into accessible space. This
+form is preferred for docking with `rocs_align` or `gogma_align` (from
+GaussianMixtureAlignment).
 
 See also: [`pocket_pharmacophore`](@ref), [`detect_pocket_cavity`](@ref).
 
@@ -276,6 +281,7 @@ function complementary_pharmacophore(mgmm::IsotropicMultiGMM, cavity::IsotropicG
     cavity_positions = [g.μ for g in cavity]
     result = IsotropicMultiGMM(Dict{keytype(mgmm), valtype(mgmm)}())
     for (k, gmm) in mgmm
+        k === :Steric && continue
         kcomp = _complement_feature(k)
         dest = get!(valtype(result), result, kcomp)
         @assert isempty(dest)
