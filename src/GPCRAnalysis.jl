@@ -52,7 +52,7 @@ export project_sequences, columnwise_entropy, align, residue_centroid, residue_c
 export StructAlign, residueindex, ismapped, skipnothing
 export BWScheme, lookupbw
 export aa_properties, aa_properties_zscored, aa_properties_matrix
-export sidechaincentroid, scvector, inward_tm_residues, inward_ecl_residues
+export sidechaincentroid, scvector, inward_tm_residues, inward_ecl_residues, pocket_pharmacophore, complementary_pharmacophore, detect_pocket_cavity
 export features_from_structure
 export forcecomponents, optimize_weights, forcedict
 
