@@ -418,7 +418,9 @@ using Test
                 end
             end
             @test startswith(query_ebi_proteins("Q7TQA6"; format=:fasta), ">sp|Q7TQA6")
-            @test count(==('>'), query_ebi_proteins(["C3N734", "H2C869", "Q3V4T1", "P20220"]; format=:fasta)) == 4
+            # Reviewed (SwissProt) accessions: unreviewed entries get withdrawn when
+            # the underlying genome annotation changes, silently shrinking the count.
+            @test count(==('>'), query_ebi_proteins(["P29274", "P29275", "P15409", "Q7TQA6"]; format=:fasta)) == 4
             q = query_ncbi(obj)
             @test q["total_count"] == 1
         end

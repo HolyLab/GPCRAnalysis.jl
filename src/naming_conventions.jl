@@ -166,9 +166,12 @@ Check the status of a Uniprot ID mapping job. Returns `true` if the results are
 ready. Otherwise, returns the status object.
 """
 function map_uniprot_status(jobID)
-    resp = HTTP.get("https://rest.uniprot.org/idmapping/status/$jobID", ["Accept" => "application/json"]; decompress = true)
+    # `decompress = false` suppresses the `Accept-Encoding: gzip` request header, so the
+    # body arrives as plain text. Uniprot does not always honor a compression request, and
+    # unconditionally gunzipping the response fails whenever it returns one uncompressed.
+    resp = HTTP.get("https://rest.uniprot.org/idmapping/status/$jobID", ["Accept" => "application/json"]; decompress = false)
     if resp.status == 200
-        status = JSON3.read(String(HTTP.decode(resp)))
+        status = JSON3.read(String(resp.body))
         haskey(status, "results") && return true
         return status
     end
@@ -181,9 +184,9 @@ end
 Retrieve the results of a Uniprot ID mapping job.
 """
 function map_uniprot_retrieve(jobID)
-    resp = HTTP.get("https://rest.uniprot.org/idmapping/stream/$jobID", ["Accept" => "application/json"]; decompress = true)
+    resp = HTTP.get("https://rest.uniprot.org/idmapping/stream/$jobID", ["Accept" => "application/json"]; decompress = false)
     if resp.status == 200
-        return JSON3.read(String(HTTP.decode(resp)))
+        return JSON3.read(String(resp.body))
     end
     return nothing
 end
